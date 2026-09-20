@@ -45,7 +45,7 @@ This cleans the raw CSV, trains the Random Forest, and saves:
 ## 2. Run the app
 
 ```bash
-streamlit run app.py
+streamlit run Home.py
 ```
 
 This opens the app in your browser (usually `http://localhost:8501`).
