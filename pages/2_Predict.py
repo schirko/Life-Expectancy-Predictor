@@ -5,9 +5,10 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import shap
 import streamlit as st
 
-st.set_page_config(page_title="Predict | Life Expectancy Explorer", page_icon="🔮", layout="wide")
+st.set_page_config(page_title="Predict | Life Expectancy Predictor", page_icon="🔮", layout="wide")
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "model", "rf_model.joblib")
@@ -24,6 +25,14 @@ if not (os.path.exists(MODEL_PATH) and os.path.exists(META_PATH)):
 @st.cache_resource
 def load_model():
     return joblib.load(MODEL_PATH)
+
+
+@st.cache_resource
+def load_explainer(_model):
+    # Leading underscore tells Streamlit not to hash this argument (models
+    # aren't easily hashable); caching is keyed on the function name alone,
+    # which is fine here since there's only ever one model.
+    return shap.TreeExplainer(_model)
 
 
 @st.cache_data
@@ -107,7 +116,7 @@ FEATURE_DESCRIPTIONS = {
 
 st.subheader("Indicators")
 
-with st.expander("📖 What do these indicators mean?"):
+with st.expander("📖 What Do These Indicators Mean?"):
     glossary_df = pd.DataFrame(
         [
             {"Indicator": FEATURE_LABELS.get(f, f), "Meaning": FEATURE_DESCRIPTIONS.get(f, "")}
@@ -136,7 +145,7 @@ with col_a:
         )
 
 with col_b:
-    st.markdown("**Direct entry**")
+    st.markdown("**Direct Entry**")
     for feat in NUMBER_INPUT_FEATURES:
         lo, hi, med = ranges[feat]
         values[feat] = st.number_input(
@@ -198,7 +207,49 @@ if predict_clicked:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("What influenced this prediction most")
+    st.subheader("Why This Prediction (SHAP)")
+    explainer = load_explainer(model)
+    shap_raw = explainer.shap_values(x)
+    # TreeExplainer on a regressor returns a 2D array (n_samples, n_features);
+    # guard against SHAP versions that wrap this in a list instead.
+    if isinstance(shap_raw, list):
+        shap_raw = shap_raw[0]
+    shap_row = np.array(shap_raw).reshape(-1)
+
+    base_value = explainer.expected_value
+    if isinstance(base_value, (list, np.ndarray)):
+        base_value = np.array(base_value).reshape(-1)[0]
+
+    shap_df = pd.DataFrame(
+        {
+            "Feature": [FEATURE_LABELS.get(c, c) for c in predictor_cols],
+            "Contribution": shap_row,
+        }
+    ).sort_values("Contribution", key=lambda s: s.abs(), ascending=True)
+
+    fig_shap = go.Figure(
+        go.Bar(
+            x=shap_df["Contribution"],
+            y=shap_df["Feature"],
+            orientation="h",
+            marker_color=["#d62728" if v < 0 else "#2ca02c" for v in shap_df["Contribution"]],
+        )
+    )
+    fig_shap.update_layout(
+        title=f"Baseline (avg. prediction): {base_value:.1f} yrs  →  Your prediction: {prediction:.1f} yrs",
+        xaxis_title="Impact on Predicted Life Expectancy (Years)",
+        height=420,
+    )
+    st.plotly_chart(fig_shap, use_container_width=True)
+    st.caption(
+        "Green bars pushed this specific prediction higher; red bars pushed it lower — "
+        "relative to the model's average prediction across the training data (the "
+        "baseline). These are SHAP (SHapley Additive exPlanations) values from the "
+        "Random Forest's TreeExplainer, which fairly attribute this individual "
+        "prediction to each input feature, unlike the global importances below."
+    )
+
+    st.subheader("Overall Feature Importance (All Predictions)")
     imp_df = pd.DataFrame(
         list(meta["feature_importances"].items()), columns=["Feature", "Importance"]
     ).sort_values("Importance", ascending=False)
@@ -206,7 +257,8 @@ if predict_clicked:
     st.caption(
         "These are overall model feature importances (not specific to this single "
         "prediction), showing which indicators the Random Forest relies on most "
-        "across all its predictions."
+        "across all its predictions. Contrast with the SHAP chart above, which "
+        "explains only this one prediction."
     )
 else:
     st.info("Set your indicator values above and click **Predict**.")
