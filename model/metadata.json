@@ -1,0 +1,103 @@
+{
+  "predictor_cols": [
+    "Adult_Mortality",
+    "Alcohol",
+    "Pct_Expenditure",
+    "Hepatitis_B",
+    "Measles",
+    "Under-Five_Deaths",
+    "Polio",
+    "Ttl_Expend",
+    "Diphtheria",
+    "HIV_AIDS",
+    "Thinness_10-19_Years",
+    "Income_Comp_Of_Resources",
+    "Schooling"
+  ],
+  "target_col": "Life_Expectancy",
+  "test_r2": 0.9610433042086807,
+  "test_mae": 1.1350776450511961,
+  "test_rmse": 1.8557143030808128,
+  "feature_importances": {
+    "HIV_AIDS": 0.5851143590731486,
+    "Income_Comp_Of_Resources": 0.17466109178969957,
+    "Adult_Mortality": 0.142107303241406,
+    "Under-Five_Deaths": 0.0233669451995383,
+    "Schooling": 0.015155703488672212,
+    "Thinness_10-19_Years": 0.014778734377938585,
+    "Alcohol": 0.01045313807510443,
+    "Ttl_Expend": 0.008999413407461035,
+    "Measles": 0.005895977478475517,
+    "Polio": 0.005892982382420512,
+    "Pct_Expenditure": 0.0050225472911389615,
+    "Diphtheria": 0.004570003310482394,
+    "Hepatitis_B": 0.003981800884513853
+  },
+  "feature_ranges": {
+    "Adult_Mortality": [
+      1.0,
+      453.0,
+      144.0
+    ],
+    "Alcohol": [
+      0.01,
+      13.49,
+      3.63
+    ],
+    "Pct_Expenditure": [
+      0.0,
+      1121.475547,
+      65.61145482
+    ],
+    "Hepatitis_B": [
+      28.0,
+      99.0,
+      89.0
+    ],
+    "Measles": [
+      0.0,
+      843.0,
+      17.0
+    ],
+    "Under-Five_Deaths": [
+      1.0,
+      83.0,
+      10.0
+    ],
+    "Polio": [
+      52.0,
+      99.0,
+      93.0
+    ],
+    "Ttl_Expend": [
+      0.37,
+      11.69,
+      5.73
+    ],
+    "Diphtheria": [
+      48.0,
+      99.0,
+      93.0
+    ],
+    "HIV_AIDS": [
+      0.1,
+      2.3,
+      0.1
+    ],
+    "Thinness_10-19_Years": [
+      0.1,
+      14.6,
+      3.3
+    ],
+    "Income_Comp_Of_Resources": [
+      0.291,
+      0.948,
+      0.677
+    ],
+    "Schooling": [
+      4.5,
+      19.0,
+      12.3
+    ]
+  }
+}
