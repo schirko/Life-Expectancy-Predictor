@@ -10,20 +10,25 @@ with SHAP-based per-prediction explanations.
 
 ```
 life_expectancy_app/
-├── Home.py                     # Home page
+├── Home.py                     # Home page (incl. Model Card)
 ├── pages/
-│   ├── 1_📊_Dashboard.py       # Explore page
-│   └── 2_🔮_Predict.py         # Prediction page (SHAP explanations)
+│   ├── 1_Dashboard.py          # Explore page
+│   ├── 2_Predict.py            # Prediction page (SHAP explanations)
+│   └── 3_Diagnostics.py        # Residuals, permutation importance, PDP,
+│                                #   calibration, tuning results, data quality
 ├── config/
 │   └── who_life_expectancy.yaml   # ALL dataset-specific knowledge lives here
 ├── config_loader.py            # Loads + validates a dataset config against its CSV
 ├── data_prep.py                # Generic, config-driven cleaning pipeline
-├── train_model.py              # Trains & saves the Random Forest model
+├── train_model.py              # Trains & saves the model + diagnostics
+├── tune_hyperparameters.py     # Optional: GridSearchCV, run separately (~few min)
 ├── data/
 │   └── Life_Expectancy_WHO_Data.csv
-├── model/                      # Created by train_model.py
+├── model/                      # Created by train_model.py / tune_hyperparameters.py
 │   ├── rf_model.joblib
-│   └── metadata.json
+│   ├── metadata.json
+│   ├── diagnostics.json
+│   └── tuning_results.json     # Only after running tune_hyperparameters.py
 └── requirements.txt
 ```
 
@@ -42,11 +47,26 @@ python train_model.py
 ```
 
 This validates the config against the CSV's actual columns, cleans the raw
-CSV, trains the Random Forest, runs 5-fold cross-validation, and saves:
+CSV, trains the Random Forest, runs 5-fold cross-validation, and computes a
+full diagnostics suite (residuals, permutation importance, partial
+dependence, uncertainty calibration, missingness report). Saves:
 - `model/rf_model.joblib` — the trained model
 - `model/metadata.json` — test metrics, CV scores, feature importances,
   feature ranges, and predictor UI metadata (labels/descriptions)
+- `model/diagnostics.json` — everything the Diagnostics page renders
 - `data/clean_data.csv` — the cleaned dataset used by the dashboard
+
+## Optional: hyperparameter tuning
+
+```bash
+python tune_hyperparameters.py
+```
+
+Runs a GridSearchCV (36 combinations × 5-fold CV) and saves
+`model/tuning_results.json`. Takes a few minutes — kept as a separate
+script from `train_model.py` so normal training stays fast. The
+Diagnostics page's "Hyperparameter Tuning" tab shows its results if
+present, or a note that it hasn't been run yet.
 
 ## 2. Run the app
 

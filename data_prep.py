@@ -116,3 +116,40 @@ def feature_ranges(df: pd.DataFrame, config: DatasetConfig) -> dict:
                 float(df[col].median()),
             )
     return ranges
+
+
+def missingness_report(config: DatasetConfig) -> list:
+    """
+    Report missing-value rates per feature at three pipeline stages:
+      - raw: straight from the CSV, before any cleaning
+      - after_implicit_nulls: after converting implicit nulls (e.g. 0-as-missing)
+        to real NaN, but before interpolation
+      - final: after interpolation/fallback-median imputation
+
+    Used by the Diagnostics page to show what the cleaning pipeline actually
+    did to missingness, rather than asserting it without evidence.
+    """
+    raw_df = pd.read_csv(config.source_csv)
+    raw_df = _clean_column_names(raw_df, config)
+    raw_df = raw_df[raw_df[config.target_column].notnull()].copy()
+
+    implicit_df = _fix_implicit_nulls(raw_df, config)
+
+    non_feature_cols = set(config.id_columns) | {config.target_column}
+    feature_cols = [c for c in implicit_df.columns if c not in non_feature_cols]
+
+    final_df = _interpolate_grouped(implicit_df, config, feature_cols)
+
+    n = len(raw_df)
+    report = []
+    for col in feature_cols:
+        raw_pct = 100 * raw_df[col].isnull().sum() / n if col in raw_df.columns else None
+        report.append(
+            {
+                "column": col,
+                "raw_missing_pct": round(float(raw_pct), 2) if raw_pct is not None else None,
+                "after_implicit_nulls_missing_pct": round(float(100 * implicit_df[col].isnull().sum() / n), 2),
+                "final_missing_pct": round(float(100 * final_df[col].isnull().sum() / n), 2),
+            }
+        )
+    return sorted(report, key=lambda r: r["after_implicit_nulls_missing_pct"], reverse=True)

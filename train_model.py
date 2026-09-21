@@ -16,17 +16,25 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import cross_val_score, train_test_split
 
 from config_loader import ConfigError, load_config, validate_schema
-from data_prep import feature_ranges, get_model_ready_df
+from data_prep import feature_ranges, get_model_ready_df, missingness_report
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "config", "who_life_expectancy.yaml")
 MODEL_PATH = os.path.join(BASE_DIR, "model", "rf_model.joblib")
 META_PATH = os.path.join(BASE_DIR, "model", "metadata.json")
+DIAGNOSTICS_PATH = os.path.join(BASE_DIR, "model", "diagnostics.json")
 CLEAN_DATA_PATH = os.path.join(BASE_DIR, "data", "clean_data.csv")
+
+# How many top features (by permutation importance) to compute partial
+# dependence plots for. Kept small since PDP computation cost grows with
+# feature count and grid resolution.
+N_PDP_FEATURES = 3
+PDP_GRID_RESOLUTION = 20
 
 
 def main():
@@ -138,6 +146,80 @@ def main():
 
     print(f"\nSaved model to {MODEL_PATH}")
     print(f"Saved metadata to {META_PATH}")
+
+    # ---- Diagnostics: residuals, permutation importance, partial ----
+    # ---- dependence, uncertainty calibration, and data quality. ----
+    # Kept in a separate file from metadata.json since these are larger
+    # and only needed by the Diagnostics page, not on every app boot.
+    print("\nComputing diagnostics...")
+
+    residuals = (y_test - y_pred).tolist()
+
+    print("  Running permutation importance (uses the held-out test set)...")
+    perm = permutation_importance(
+        model, x_test, y_test, n_repeats=10, random_state=random_state, n_jobs=-1
+    )
+    permutation_importances = sorted(
+        [
+            {
+                "feature": col,
+                "importance_mean": float(mean),
+                "importance_std": float(std),
+            }
+            for col, mean, std in zip(
+                config.predictor_columns, perm.importances_mean, perm.importances_std
+            )
+        ],
+        key=lambda d: d["importance_mean"],
+        reverse=True,
+    )
+
+    print(f"  Computing partial dependence for top {N_PDP_FEATURES} features...")
+    top_features = [d["feature"] for d in permutation_importances[:N_PDP_FEATURES]]
+    partial_dependence_data = {}
+    for feat in top_features:
+        idx = config.predictor_columns.index(feat)
+        pdp = partial_dependence(
+            model, x_train, features=[idx], kind="average", grid_resolution=PDP_GRID_RESOLUTION
+        )
+        partial_dependence_data[feat] = {
+            "grid_values": pdp["grid_values"][0].tolist(),
+            "predicted": pdp["average"][0].tolist(),
+        }
+
+    print("  Checking uncertainty interval calibration...")
+    all_tree_preds = np.array([tree.predict(x_test) for tree in model.estimators_])
+    lower_80 = np.percentile(all_tree_preds, 10, axis=0)
+    upper_80 = np.percentile(all_tree_preds, 90, axis=0)
+    covered_80 = (y_test >= lower_80) & (y_test <= upper_80)
+    calibration = {
+        "stated_interval_pct": 80,
+        "empirical_coverage_pct": round(float(covered_80.mean() * 100), 1),
+        "note": (
+            "Empirical coverage is how often the true value actually fell within "
+            "the stated 10th-90th percentile tree-spread band, measured on the "
+            "held-out test set. Close to 80% = well-calibrated; higher = "
+            "conservative (wider than needed); lower = overconfident."
+        ),
+    }
+
+    print("  Building missingness report...")
+    missingness = missingness_report(config)
+
+    diagnostics = {
+        "residuals": {
+            "y_test": y_test.tolist(),
+            "y_pred": y_pred.tolist(),
+            "residuals": residuals,
+        },
+        "permutation_importance": permutation_importances,
+        "partial_dependence": partial_dependence_data,
+        "calibration": calibration,
+        "missingness": missingness,
+    }
+    with open(DIAGNOSTICS_PATH, "w") as f:
+        json.dump(diagnostics, f, indent=2)
+    print(f"Saved diagnostics to {DIAGNOSTICS_PATH}")
 
     df.to_csv(CLEAN_DATA_PATH, index=False)
     print(f"Saved cleaned dataset to {CLEAN_DATA_PATH}")
