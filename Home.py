@@ -32,13 +32,23 @@ if os.path.exists(meta_path):
     with open(meta_path) as f:
         meta = json.load(f)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Model Test R²", f"{meta['test_r2']:.3f}")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Test R²", f"{meta['test_r2']:.3f}")
     col2.metric("Test MAE (Years)", f"{meta['test_mae']:.2f}")
     col3.metric("Test RMSE (Years)", f"{meta['test_rmse']:.2f}")
+    if "cv_r2_mean" in meta:
+        col4.metric(
+            "5-Fold CV R²",
+            f"{meta['cv_r2_mean']:.3f}",
+            help=f"± {meta.get('cv_r2_std', 0):.3f} across folds — a more robust estimate than a single train/test split.",
+        )
 
     st.caption(
-        "Metrics are from a held-out test set (20% of rows), not seen during training."
+        f"Trained on **{meta.get('dataset_name', 'this dataset')}** "
+        f"({meta.get('n_rows', '?'):,} rows) using config `{meta.get('config_path', '?')}`. "
+        "Test metrics are from a held-out 20% split; the 5-fold CV score reflects "
+        "average performance across 5 different train/test splits, a more reliable "
+        "read on how well the model generalizes."
     )
 else:
     st.warning(
@@ -73,6 +83,29 @@ country-year observations** across roughly **193 countries** from **2000 to
 """
 )
 
+st.markdown("### Architecture: Config-Driven, Not Hardcoded")
+st.markdown(
+    """
+Rather than hardcoding this dataset's column names and cleaning rules
+directly into the app's code, all of that dataset-specific knowledge lives
+in a separate YAML config file (`config/who_life_expectancy.yaml`):
+column renames, which values count as missing, per-feature outlier limits,
+the model's predictor list, and how each predictor should appear in the
+Predict page's UI.
+
+The cleaning pipeline, training script, and Predict page all read from
+whichever config is active rather than containing dataset-specific logic
+themselves. A training run also validates the config against the CSV's
+actual columns up front, failing fast with a clear message if they don't
+match, rather than partway through cleaning.
+
+In practice, this means a **similarly-shaped** WHO-style CSV (same kind of
+country-year panel data, a numeric target, numeric predictors) can be
+swapped in by writing a new config file and re-running training — without
+touching the Python code.
+"""
+)
+
 st.markdown("### Methodology")
 st.markdown(
     """
@@ -90,6 +123,11 @@ st.markdown(
 )
 
 st.markdown("### Model Comparison")
+st.caption(
+    "Note: figures below are from the original notebook's single train/test "
+    "split. This app's currently-deployed Random Forest additionally reports "
+    "5-fold cross-validation results above, for a more robust performance estimate."
+)
 model_comparison = [
     {"Model": "Simple Linear Regression (Schooling → Life Expectancy)", "Task": "Regression", "Performance": "R² = 0.55"},
     {"Model": "Multiple Linear Regression", "Task": "Regression", "Performance": "R² = 0.85"},
@@ -115,6 +153,11 @@ st.markdown(
 - **Model uncertainty.** The Predict page shows a rough uncertainty range
   based on the spread across the Random Forest's individual trees — treat
   single-point predictions as estimates, not exact figures.
+- **Single-split vs. cross-validation.** The 20% test-set metrics above
+  reflect one particular train/test split, which can be optimistic or
+  pessimistic by chance. The 5-fold CV score is a more honest estimate —
+  notice it's a bit lower than the single-split R², which is expected and
+  is exactly the kind of gap CV is meant to reveal.
 """
 )
 

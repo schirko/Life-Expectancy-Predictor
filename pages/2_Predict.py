@@ -51,76 +51,34 @@ meta = load_meta()
 df = load_data()
 predictor_cols = meta["predictor_cols"]
 ranges = meta["feature_ranges"]
+target_col = meta.get("target_col", "Life_Expectancy")
 
 st.markdown(
-    "Enter values for the indicators below, then click **Predict** to estimate "
-    "life expectancy using the trained Random Forest model "
+    f"Enter values for the indicators below, then click **Predict** to estimate "
+    f"{meta.get('dataset_name', 'the target')} using the trained Random Forest model "
     f"(test R² = {meta['test_r2']:.3f}, avg. error ≈ {meta['test_mae']:.1f} years)."
 )
 
-# Features shown as sliders (bounded rate/percentage-style indicators)
-SLIDER_FEATURES = [
-    "Adult_Mortality",
-    "HIV_AIDS",
-    "Under-Five_Deaths",
-    "Polio",
-    "Diphtheria",
-    "Hepatitis_B",
-    "Thinness_10-19_Years",
-]
+# Predictor metadata (label, description, slider vs. number, whether to show
+# a control at all) comes entirely from the training config via metadata.json
+# -- nothing about which features exist or how to describe them is hardcoded
+# here, so swapping in a differently-shaped dataset's config doesn't require
+# touching this page.
+predictors_meta = meta.get("predictors", [])
+FEATURE_LABELS = {p["column"]: p.get("label", p["column"]) for p in predictors_meta}
+FEATURE_DESCRIPTIONS = {p["column"]: p.get("description", "") for p in predictors_meta}
 
-# Features shown as raw number entry (less intuitive bounds / more precision-sensitive)
-NUMBER_INPUT_FEATURES = [
-    "Alcohol",
-    "Pct_Expenditure",
-    "Ttl_Expend",
-    "Income_Comp_Of_Resources",
-    "Schooling",
-]
-
-FEATURE_LABELS = {
-    "Adult_Mortality": "Adult Mortality (per 1,000 adults)",
-    "HIV_AIDS": "HIV/AIDS deaths (per 1,000, ages 0-4)",
-    "Under-Five_Deaths": "Under-Five Deaths (per 1,000)",
-    "Polio": "Polio immunization (%)",
-    "Diphtheria": "Diphtheria (DTP3) immunization (%)",
-    "Hepatitis_B": "Hepatitis B immunization (%)",
-    "Thinness_10-19_Years": "Thinness, ages 10-19 (%)",
-    "Alcohol": "Alcohol consumption (litres/capita)",
-    "Pct_Expenditure": "Health expenditure (% of GDP per capita)",
-    "Ttl_Expend": "Total govt. health expenditure (% of total govt. expenditure)",
-    "Income_Comp_Of_Resources": "Income Composition of Resources (0-1 index)",
-    "Schooling": "Schooling (avg. years)",
-}
-
-# Longer, plain-English explanations shown in the glossary expander and as
-# per-field help text (hover the "?" icon next to each input).
-FEATURE_DESCRIPTIONS = {
-    "Adult_Mortality": "Probability of dying between ages 15-60, per 1,000 population. Higher = worse.",
-    "HIV_AIDS": "Deaths per 1,000 live births caused by HIV/AIDS, ages 0-4.",
-    "Under-Five_Deaths": "Deaths per 1,000 population among children under age 5.",
-    "Polio": "% of 1-year-olds immunized against polio.",
-    "Diphtheria": "% of 1-year-olds immunized against diphtheria (DTP3 vaccine).",
-    "Hepatitis_B": "% of 1-year-olds immunized against Hepatitis B.",
-    "Thinness_10-19_Years": "% of 10-19 year-olds classified as underweight (thin) for their age.",
-    "Alcohol": "Liters of pure alcohol consumed per capita (age 15+ population).",
-    "Pct_Expenditure": "Health expenditure as a percentage of GDP per capita.",
-    "Ttl_Expend": "Total government health spending as a percentage of total government spending.",
-    "Income_Comp_Of_Resources": (
-        "A UN Human Development Index sub-component (0-1 scale) capturing how "
-        "effectively a country converts income into human development outcomes. "
-        "Higher = more effective."
-    ),
-    "Schooling": "Average number of years of schooling completed.",
-}
+visible_predictors = [p for p in predictors_meta if p.get("show_in_ui", True)]
+slider_specs = [p for p in visible_predictors if p.get("input_type") == "slider"]
+number_specs = [p for p in visible_predictors if p.get("input_type") != "slider"]
 
 st.subheader("Indicators")
 
 with st.expander("📖 What Do These Indicators Mean?"):
     glossary_df = pd.DataFrame(
         [
-            {"Indicator": FEATURE_LABELS.get(f, f), "Meaning": FEATURE_DESCRIPTIONS.get(f, "")}
-            for f in SLIDER_FEATURES + NUMBER_INPUT_FEATURES
+            {"Indicator": p.get("label", p["column"]), "Meaning": p.get("description", "")}
+            for p in visible_predictors
         ]
     )
     st.dataframe(glossary_df, use_container_width=True, hide_index=True)
@@ -131,29 +89,35 @@ values = {}
 
 with col_a:
     st.markdown("**Sliders**")
-    for feat in SLIDER_FEATURES:
+    if not slider_specs:
+        st.caption("No slider-type indicators configured.")
+    for spec in slider_specs:
+        feat = spec["column"]
         lo, hi, med = ranges[feat]
         step = (hi - lo) / 100 if hi > lo else 1.0
         values[feat] = st.slider(
-            FEATURE_LABELS.get(feat, feat),
+            spec.get("label", feat),
             min_value=round(lo, 2),
             max_value=round(hi, 2),
             value=round(med, 2),
             step=round(step, 2) if step > 0 else 1.0,
-            help=FEATURE_DESCRIPTIONS.get(feat, ""),
+            help=spec.get("description", ""),
             key=f"slider_{feat}",
         )
 
 with col_b:
     st.markdown("**Direct Entry**")
-    for feat in NUMBER_INPUT_FEATURES:
+    if not number_specs:
+        st.caption("No direct-entry indicators configured.")
+    for spec in number_specs:
+        feat = spec["column"]
         lo, hi, med = ranges[feat]
         values[feat] = st.number_input(
-            FEATURE_LABELS.get(feat, feat),
+            spec.get("label", feat),
             min_value=round(lo, 3),
             max_value=round(hi * 1.5, 3),  # allow entering somewhat beyond observed max
             value=round(med, 3),
-            help=f"{FEATURE_DESCRIPTIONS.get(feat, '')} (Observed range in data: {lo:.2f} – {hi:.2f})",
+            help=f"{spec.get('description', '')} (Observed range in data: {lo:.2f} – {hi:.2f})",
             key=f"num_{feat}",
         )
 
@@ -179,14 +143,14 @@ if predict_clicked:
     st.subheader("Result")
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.metric("Predicted life expectancy", f"{prediction:.1f} years")
+        st.metric(f"Predicted {meta.get('dataset_name', 'Value')}", f"{prediction:.1f} years")
         st.caption(f"~80% of the model's trees predicted between {lower:.1f} and {upper:.1f} years.")
 
     with col2:
         fig = go.Figure()
         fig.add_trace(
             go.Histogram(
-                x=df["Life_Expectancy"],
+                x=df[target_col],
                 name="Dataset distribution",
                 opacity=0.6,
                 nbinsx=40,
@@ -201,7 +165,7 @@ if predict_clicked:
         )
         fig.update_layout(
             title="Where this prediction falls in the dataset",
-            xaxis_title="Life Expectancy",
+            xaxis_title=target_col.replace("_", " "),
             yaxis_title="Count",
             height=350,
         )

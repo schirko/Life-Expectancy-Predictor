@@ -1,37 +1,143 @@
 {
+  "dataset_name": "WHO Life Expectancy",
+  "dataset_description": "World Health Organization / UN life expectancy and health indicators, covering roughly 193 countries from 2000 to 2015.\n",
+  "config_path": "config/who_life_expectancy.yaml",
+  "target_col": "Life_Expectancy",
   "predictor_cols": [
     "Adult_Mortality",
-    "Alcohol",
-    "Pct_Expenditure",
-    "Hepatitis_B",
-    "Measles",
+    "HIV_AIDS",
     "Under-Five_Deaths",
     "Polio",
-    "Ttl_Expend",
     "Diphtheria",
-    "HIV_AIDS",
+    "Hepatitis_B",
     "Thinness_10-19_Years",
+    "Alcohol",
+    "Pct_Expenditure",
+    "Ttl_Expend",
     "Income_Comp_Of_Resources",
-    "Schooling"
+    "Schooling",
+    "Measles"
   ],
-  "target_col": "Life_Expectancy",
-  "test_r2": 0.9610433042086807,
-  "test_mae": 1.1350776450511961,
-  "test_rmse": 1.8557143030808128,
+  "predictors": [
+    {
+      "column": "Adult_Mortality",
+      "label": "Adult Mortality (per 1,000 adults)",
+      "description": "Probability of dying between ages 15-60, per 1,000 population. Higher = worse.",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "HIV_AIDS",
+      "label": "HIV/AIDS deaths (per 1,000, ages 0-4)",
+      "description": "Deaths per 1,000 live births caused by HIV/AIDS, ages 0-4.",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "Under-Five_Deaths",
+      "label": "Under-Five Deaths (per 1,000)",
+      "description": "Deaths per 1,000 population among children under age 5.",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "Polio",
+      "label": "Polio immunization (%)",
+      "description": "% of 1-year-olds immunized against polio.",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "Diphtheria",
+      "label": "Diphtheria (DTP3) immunization (%)",
+      "description": "% of 1-year-olds immunized against diphtheria (DTP3 vaccine).",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "Hepatitis_B",
+      "label": "Hepatitis B immunization (%)",
+      "description": "% of 1-year-olds immunized against Hepatitis B.",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "Thinness_10-19_Years",
+      "label": "Thinness, ages 10-19 (%)",
+      "description": "% of 10-19 year-olds classified as underweight (thin) for their age.",
+      "input_type": "slider",
+      "show_in_ui": true
+    },
+    {
+      "column": "Alcohol",
+      "label": "Alcohol consumption (litres/capita)",
+      "description": "Liters of pure alcohol consumed per capita (age 15+ population).",
+      "input_type": "number",
+      "show_in_ui": true
+    },
+    {
+      "column": "Pct_Expenditure",
+      "label": "Health expenditure (% of GDP per capita)",
+      "description": "Health expenditure as a percentage of GDP per capita.",
+      "input_type": "number",
+      "show_in_ui": true
+    },
+    {
+      "column": "Ttl_Expend",
+      "label": "Total govt. health expenditure (% of total govt. expenditure)",
+      "description": "Total government health spending as a percentage of total government spending.",
+      "input_type": "number",
+      "show_in_ui": true
+    },
+    {
+      "column": "Income_Comp_Of_Resources",
+      "label": "Income Composition of Resources (0-1 index)",
+      "description": "A UN Human Development Index sub-component (0-1 scale) capturing how effectively a country converts income into human development outcomes. Higher = more effective.\n",
+      "input_type": "number",
+      "show_in_ui": true
+    },
+    {
+      "column": "Schooling",
+      "label": "Schooling (avg. years)",
+      "description": "Average number of years of schooling completed.",
+      "input_type": "number",
+      "show_in_ui": true
+    },
+    {
+      "column": "Measles",
+      "label": "Measles cases (reported per 1,000)",
+      "description": "Number of reported measles cases per 1,000 population.",
+      "input_type": "number",
+      "show_in_ui": false
+    }
+  ],
+  "test_r2": 0.9616852889581575,
+  "test_mae": 1.130345563139932,
+  "test_rmse": 1.840360212111812,
+  "cv_r2_mean": 0.9103792605180475,
+  "cv_r2_std": 0.01648020944084813,
+  "cv_r2_folds": [
+    0.9368,
+    0.8891,
+    0.9039,
+    0.92,
+    0.9021
+  ],
+  "n_rows": 2928,
   "feature_importances": {
-    "HIV_AIDS": 0.5851143590731486,
-    "Income_Comp_Of_Resources": 0.17466109178969957,
-    "Adult_Mortality": 0.142107303241406,
-    "Under-Five_Deaths": 0.0233669451995383,
-    "Schooling": 0.015155703488672212,
-    "Thinness_10-19_Years": 0.014778734377938585,
-    "Alcohol": 0.01045313807510443,
-    "Ttl_Expend": 0.008999413407461035,
-    "Measles": 0.005895977478475517,
-    "Polio": 0.005892982382420512,
-    "Pct_Expenditure": 0.0050225472911389615,
-    "Diphtheria": 0.004570003310482394,
-    "Hepatitis_B": 0.003981800884513853
+    "HIV_AIDS": 0.5851023995287346,
+    "Income_Comp_Of_Resources": 0.17466250856707902,
+    "Adult_Mortality": 0.14210366651555226,
+    "Under-Five_Deaths": 0.02343787781276116,
+    "Schooling": 0.015118696604634581,
+    "Thinness_10-19_Years": 0.014769356118099977,
+    "Alcohol": 0.010483257588241986,
+    "Ttl_Expend": 0.009005881630394622,
+    "Polio": 0.005936245532553775,
+    "Measles": 0.005893175316932222,
+    "Pct_Expenditure": 0.0049820956620325344,
+    "Diphtheria": 0.004522495485446177,
+    "Hepatitis_B": 0.00398234363753708
   },
   "feature_ranges": {
     "Adult_Mortality": [
@@ -39,25 +145,10 @@
       453.0,
       144.0
     ],
-    "Alcohol": [
-      0.01,
-      13.49,
-      3.63
-    ],
-    "Pct_Expenditure": [
-      0.0,
-      1121.475547,
-      65.61145482
-    ],
-    "Hepatitis_B": [
-      28.0,
-      99.0,
-      89.0
-    ],
-    "Measles": [
-      0.0,
-      843.0,
-      17.0
+    "HIV_AIDS": [
+      0.1,
+      2.3,
+      0.1
     ],
     "Under-Five_Deaths": [
       1.0,
@@ -69,25 +160,35 @@
       99.0,
       93.0
     ],
-    "Ttl_Expend": [
-      0.37,
-      11.69,
-      5.73
-    ],
     "Diphtheria": [
       48.0,
       99.0,
       93.0
     ],
-    "HIV_AIDS": [
-      0.1,
-      2.3,
-      0.1
+    "Hepatitis_B": [
+      28.0,
+      99.0,
+      89.0
     ],
     "Thinness_10-19_Years": [
       0.1,
       14.6,
       3.3
+    ],
+    "Alcohol": [
+      0.01,
+      13.49,
+      3.63
+    ],
+    "Pct_Expenditure": [
+      0.0,
+      1121.475547,
+      65.61145482
+    ],
+    "Ttl_Expend": [
+      0.37,
+      11.69,
+      5.73
     ],
     "Income_Comp_Of_Resources": [
       0.291,
@@ -98,6 +199,11 @@
       4.5,
       19.0,
       12.3
+    ],
+    "Measles": [
+      0.0,
+      843.0,
+      17.0
     ]
   }
 }
