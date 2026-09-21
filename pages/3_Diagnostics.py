@@ -89,9 +89,11 @@ tell those two situations apart.
 
     st.subheader("Actual vs. Predicted")
     st.caption(
-        "Each point is one held-out test-set row. Points on the diagonal line "
-        "are perfect predictions; scatter around it is normal error; a "
-        "systematic curve or fan shape would signal a problem."
+        "How to read this: the x-axis is the true value, the y-axis is what the "
+        "model predicted. Each point is one held-out test-set row. Points hugging "
+        "the dashed diagonal line closely, with only minor scatter, is what a "
+        "strong R² looks like visually — a systematic curve or fan shape away "
+        "from the line would signal a problem a single R² number wouldn't reveal."
     )
     y_test = diagnostics["residuals"]["y_test"]
     y_pred = diagnostics["residuals"]["y_pred"]
@@ -106,9 +108,11 @@ tell those two situations apart.
 
     st.subheader("Residuals vs. Predicted")
     st.caption(
-        "Residual = actual − predicted. Random scatter around zero (no funnel "
-        "shape, no curve) suggests the model's errors aren't systematically "
-        "biased at any particular prediction range."
+        "How to read this: x-axis is the predicted value, y-axis is the error "
+        "(actual − predicted). You want a random cloud centered on zero with no "
+        "shape. A funnel that widens toward one side means the model is less "
+        "reliable at certain prediction ranges; a curve instead of random scatter "
+        "means the model is missing some non-linear relationship."
     )
     fig_resid = go.Figure()
     fig_resid.add_trace(go.Scatter(x=y_pred, y=residuals, mode="markers", opacity=0.5))
@@ -117,6 +121,12 @@ tell those two situations apart.
     st.plotly_chart(fig_resid, use_container_width=True)
 
     st.subheader("Distribution of Residuals")
+    st.caption(
+        "How to read this: just the shape of every error, all together. Should "
+        "look roughly like a bell curve centered near zero. A skew to one side "
+        "would mean the model systematically over- or under-predicts more often "
+        "than the reverse."
+    )
     fig_hist = px.histogram(x=residuals, nbins=40, labels={"x": "Residual (years)"})
     fig_hist.add_vline(x=0, line_color="crimson", line_dash="dash")
     st.plotly_chart(fig_hist, use_container_width=True)
@@ -160,6 +170,13 @@ happen to get built.
         )
 
     st.subheader("Permutation Importance vs. Built-In Feature Importance")
+    st.caption(
+        "How to read the bar chart: each bar's length is how much test R² "
+        "dropped when that feature's values got randomly shuffled — longer bar = "
+        "model relies on it more. The whiskers are ± one standard deviation "
+        "across 10 repeated shuffles (shuffling is random, so it's repeated and "
+        "averaged for stability)."
+    )
     st.markdown(
         """
 The Random Forest's default `feature_importances_` (shown on the Home and
@@ -246,6 +263,13 @@ holding all other features at their observed values and averaging the
 effect — answering "what relationship did the model actually learn," beyond
 just an importance ranking.
 """
+    )
+    st.caption(
+        "How to read each line: x-axis is that feature's value range, y-axis is "
+        "the model's predicted life expectancy as that value changes. What "
+        "matters is the slope and shape — a steady downward trend, a flattening "
+        "past some point (diminishing effect), or a non-linear bend all tell you "
+        "something a single importance number can't."
     )
     pdp_data = diagnostics["partial_dependence"]
     cols = st.columns(len(pdp_data))
@@ -407,9 +431,12 @@ check.
 
     st.subheader("Missingness: Before vs. After Cleaning")
     st.caption(
-        "Missing-value rate per feature at three pipeline stages: straight from "
-        "the raw CSV, after converting implicit nulls (e.g. a 0 that really "
-        "means \"missing\") to real nulls, and after interpolation/imputation."
+        "How to read this: one group of 3 bars per feature. The story is in the "
+        "GAP between the 1st bar (raw CSV) and 2nd bar (after implicit-null "
+        "detection) — a big jump there means values that looked \"complete\" "
+        "were actually placeholders for missing data. The 3rd bar (after "
+        "imputation) should be ~0% everywhere, confirming the pipeline actually "
+        "resolved what it found."
     )
     miss_df = pd.DataFrame(diagnostics["missingness"])
     miss_df = miss_df[miss_df["after_implicit_nulls_missing_pct"] > 0].sort_values(
