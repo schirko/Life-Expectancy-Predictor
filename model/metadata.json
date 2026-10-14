@@ -1,7 +1,7 @@
 {
   "dataset_name": "WHO Life Expectancy",
   "dataset_description": "World Health Organization / UN life expectancy and health indicators, covering roughly 193 countries from 2000 to 2015.\n",
-  "config_path": "config/who_life_expectancy.yaml",
+  "config_path": "config\\who_life_expectancy.yaml",
   "target_col": "Life_Expectancy",
   "predictor_cols": [
     "Adult_Mortality",
@@ -111,33 +111,36 @@
       "show_in_ui": false
     }
   ],
-  "test_r2": 0.9616852889581575,
-  "test_mae": 1.130345563139932,
-  "test_rmse": 1.840360212111812,
-  "cv_r2_mean": 0.9103792605180475,
-  "cv_r2_std": 0.01648020944084813,
+  "test_r2": 0.9618219047610357,
+  "test_mae": 1.126413822525599,
+  "test_rmse": 1.8370762671096386,
+  "cv_method": "GroupKFold(5) by Country",
+  "cv_r2_mean": 0.90228,
+  "cv_r2_std": 0.019533397041989396,
   "cv_r2_folds": [
-    0.9368,
-    0.8891,
-    0.9039,
-    0.92,
-    0.9021
+    0.9353,
+    0.9057,
+    0.9054,
+    0.8851,
+    0.8799
   ],
+  "cv_random_r2_mean": 0.9614520173413424,
+  "cv_random_r2_std": 0.005728511031864906,
   "n_rows": 2928,
   "feature_importances": {
-    "HIV_AIDS": 0.5851023995287346,
-    "Income_Comp_Of_Resources": 0.17466250856707902,
-    "Adult_Mortality": 0.14210366651555226,
-    "Under-Five_Deaths": 0.02343787781276116,
-    "Schooling": 0.015118696604634581,
-    "Thinness_10-19_Years": 0.014769356118099977,
-    "Alcohol": 0.010483257588241986,
-    "Ttl_Expend": 0.009005881630394622,
-    "Polio": 0.005936245532553775,
-    "Measles": 0.005893175316932222,
-    "Pct_Expenditure": 0.0049820956620325344,
-    "Diphtheria": 0.004522495485446177,
-    "Hepatitis_B": 0.00398234363753708
+    "HIV_AIDS": 0.5851401050930981,
+    "Income_Comp_Of_Resources": 0.17464816356036178,
+    "Adult_Mortality": 0.14212994426639194,
+    "Under-Five_Deaths": 0.023381685015556514,
+    "Schooling": 0.015151761339675761,
+    "Thinness_10-19_Years": 0.014814334962001905,
+    "Alcohol": 0.010367841852150443,
+    "Ttl_Expend": 0.00896004647456893,
+    "Polio": 0.0059119085660117995,
+    "Measles": 0.005881618879872433,
+    "Pct_Expenditure": 0.0050645032483069355,
+    "Diphtheria": 0.00450711229203298,
+    "Hepatitis_B": 0.004040974449970516
   },
   "feature_ranges": {
     "Adult_Mortality": [

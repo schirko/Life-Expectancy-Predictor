@@ -22,7 +22,7 @@ Use the sidebar to navigate:
 
 - **📊 Dashboard** — explore trends, correlations, and country rankings
 - **🔮 Predict** — enter indicator values and get a predicted life expectancy
-- **🔬 Diagnostics** — residuals, permutation importance, partial dependence, uncertainty calibration, hyperparameter tuning, and data quality
+- **🔬 Diagnostics** — residuals, permutation importance, partial dependence, unseen-country validation, uncertainty calibration, hyperparameter tuning, and data quality
 
 ---
 """
@@ -39,17 +39,17 @@ if os.path.exists(meta_path):
     col3.metric("Test RMSE (Years)", f"{meta['test_rmse']:.2f}")
     if "cv_r2_mean" in meta:
         col4.metric(
-            "5-Fold CV R²",
+            "Unseen-Country CV R²",
             f"{meta['cv_r2_mean']:.3f}",
-            help=f"± {meta.get('cv_r2_std', 0):.3f} across folds — a more robust estimate than a single train/test split.",
+            help=f"± {meta.get('cv_r2_std', 0):.3f} across folds. Each fold holds out whole countries, so this measures accuracy on countries the model never saw during training.",
         )
 
     st.caption(
         f"Trained on **{meta.get('dataset_name', 'this dataset')}** "
         f"({meta.get('n_rows', '?'):,} rows) using config `{meta.get('config_path', '?')}`. "
-        "Test metrics are from a held-out 20% split; the 5-fold CV score reflects "
-        "average performance across 5 different train/test splits, a more reliable "
-        "read on how well the model generalizes."
+        "Test metrics are from a held-out 20% split; the CV score holds out "
+        "entire countries (GroupKFold by country), so it reflects how well the model "
+        "generalizes to countries it has never seen. See Diagnostics → Unseen Countries."
     )
 else:
     st.warning(
@@ -127,7 +127,7 @@ st.markdown("### Model Comparison")
 st.caption(
     "Note: figures below are from the original notebook's single train/test "
     "split. This app's currently-deployed Random Forest additionally reports "
-    "5-fold cross-validation results above, for a more robust performance estimate."
+    "country-grouped cross-validation results above, which test generalization to unseen countries."
 )
 model_comparison = [
     {"Model": "Simple Linear Regression (Schooling → Life Expectancy)", "Task": "Regression", "Performance": "R² = 0.55"},
@@ -241,7 +241,7 @@ r2_score(y_test, y_pred)   # 0.91''',
                 "200 trees, no depth cap (the ensemble averaging controls overfitting "
                 "instead of a single tree's depth limit). R² = 0.96 on this single "
                 "split; this app's Home page above also reports the more robust "
-                "5-fold CV score (≈ 0.91) for the currently-deployed model."
+                "country-grouped CV score (≈ 0.90) for the currently-deployed model."
             ),
             "code": '''predictor_cols = [c for c in feature_vars if c != 'Life_Expectancy']
 x = df[predictor_cols].values
@@ -322,7 +322,7 @@ if os.path.exists(meta_path):
         st.markdown(
             f"""
 **Performance**
-- Test R²: {meta['test_r2']:.3f}  |  5-fold CV R²: {meta.get('cv_r2_mean', 0):.3f} (± {meta.get('cv_r2_std', 0):.3f})
+- Test R²: {meta['test_r2']:.3f}  |  Unseen-country CV R² (GroupKFold): {meta.get('cv_r2_mean', 0):.3f} (± {meta.get('cv_r2_std', 0):.3f})
 - Test MAE: {meta['test_mae']:.2f} years  |  Test RMSE: {meta['test_rmse']:.2f} years
 - Uncertainty interval: see 🔬 Diagnostics → Uncertainty Calibration for an
   empirical check of how trustworthy the Predict page's ranges actually are
@@ -360,11 +360,12 @@ st.markdown(
 - **Model uncertainty.** The Predict page shows a rough uncertainty range
   based on the spread across the Random Forest's individual trees — treat
   single-point predictions as estimates, not exact figures.
-- **Single-split vs. cross-validation.** The 20% test-set metrics above
-  reflect one particular train/test split, which can be optimistic or
-  pessimistic by chance. The 5-fold CV score is a more honest estimate —
-  notice it's a bit lower than the single-split R², which is expected and
-  is exactly the kind of gap CV is meant to reveal.
+- **Same-country leakage in random splits.** The data is a panel: each
+  country appears in up to 16 years. A random 80/20 split puts a country's
+  other years in training, so the test score partly measures memorizing
+  countries. Holding out whole countries (GroupKFold) gives a lower but more
+  honest R² for countries the model has never seen. See Diagnostics →
+  Unseen Countries for the comparison and the hardest-to-predict countries.
 """
 )
 

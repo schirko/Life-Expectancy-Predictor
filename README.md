@@ -2,8 +2,8 @@
 
 A Streamlit app built on top of the WHO Life Expectancy data-science project:
 a **Dashboard** for exploring trends/correlations/rankings, and a **Predict**
-page that uses a trained Random Forest model (test R² ≈ 0.96, 5-fold CV
-R² ≈ 0.91) to estimate life expectancy from health and economic indicators,
+page that uses a trained Random Forest model (test R² ≈ 0.96, country-grouped CV
+R² ≈ 0.90) to estimate life expectancy from health and economic indicators,
 with SHAP-based per-prediction explanations.
 
 ## Project structure
@@ -47,7 +47,7 @@ python train_model.py
 ```
 
 This validates the config against the CSV's actual columns, cleans the raw
-CSV, trains the Random Forest, runs 5-fold cross-validation, and computes a
+CSV, trains the Random Forest, runs country-grouped (GroupKFold) cross-validation, and computes a
 full diagnostics suite (residuals, permutation importance, partial
 dependence, uncertainty calibration, missingness report). Saves:
 - `model/rf_model.joblib` — the trained model
@@ -120,9 +120,10 @@ the cleaning pipeline and Predict page would work unchanged.
   across the Random Forest's individual trees — a rough, not statistically
   rigorous, uncertainty indicator. SHAP values (also on the Predict page)
   give a more principled per-prediction explanation.
-- `train_model.py` reports both a single 80/20 train/test split AND 5-fold
-  cross-validation — worth noting the CV score is typically a bit lower and
-  more trustworthy than a single lucky/unlucky split.
+- `train_model.py` reports a single 80/20 split AND GroupKFold(5) cross-validation
+  that holds out whole countries. The grouped score is lower because random
+  splits leak a country's other years into training; it estimates accuracy on
+  countries the model has never seen (Diagnostics → Unseen Countries).
 
 ## Ideas for next steps
 

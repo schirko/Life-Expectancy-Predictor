@@ -18,7 +18,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.model_selection import GroupKFold, KFold, train_test_split
 
 from config_loader import ConfigError, load_config, validate_schema
 from data_prep import feature_ranges, get_model_ready_df, missingness_report
@@ -35,6 +35,124 @@ CLEAN_DATA_PATH = os.path.join(BASE_DIR, "data", "clean_data.csv")
 # feature count and grid resolution.
 N_PDP_FEATURES = 3
 PDP_GRID_RESOLUTION = 20
+
+
+def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits=5):
+    """
+    Compare random-fold CV against group-fold CV (whole entities held out),
+    and break the group-CV errors down by entity.
+
+    Returns None if the config defines no group column to hold out.
+    Everything here is computed from the data -- nothing is hardcoded --
+    so it stays correct if the dataset or config changes.
+    """
+    group_col = config.group_column
+    if not group_col or group_col not in df.columns:
+        return None
+    groups = df[group_col].values
+
+    def make_model():
+        return RandomForestRegressor(
+            n_estimators=n_estimators, random_state=random_state, n_jobs=-1
+        )
+
+    interval = {"covered": np.zeros(len(y), dtype=bool), "width": np.zeros(len(y))}
+
+    def run_cv(splitter, use_groups, track_interval=False):
+        """One fit per fold; returns per-fold R2 and out-of-fold predictions.
+        If track_interval, also records whether the Predict page's 80%
+        tree-spread interval (10th-90th percentile across trees) contained
+        the true value for each held-out row."""
+        oof = np.zeros(len(y))
+        fold_r2 = []
+        split_args = (x, y, groups) if use_groups else (x, y)
+        for train_idx, test_idx in splitter.split(*split_args):
+            m = make_model().fit(x[train_idx], y[train_idx])
+            oof[test_idx] = m.predict(x[test_idx])
+            fold_r2.append(float(r2_score(y[test_idx], oof[test_idx])))
+            if track_interval:
+                tree_preds = np.array([t.predict(x[test_idx]) for t in m.estimators_])
+                lo, hi = np.percentile(tree_preds, [10, 90], axis=0)
+                interval["covered"][test_idx] = (y[test_idx] >= lo) & (y[test_idx] <= hi)
+                interval["width"][test_idx] = hi - lo
+        return np.array(fold_r2), oof
+
+    def summarize(fold_r2, oof):
+        return {
+            "fold_r2": [round(float(s), 4) for s in fold_r2],
+            "r2_mean": float(fold_r2.mean()),
+            "r2_std": float(fold_r2.std()),
+            "oof_mae": float(mean_absolute_error(y, oof)),
+            "oof_r2": float(r2_score(y, oof)),
+        }
+
+    random_r2, random_oof = run_cv(KFold(n_splits, shuffle=True, random_state=random_state), False)
+    group_r2, group_oof = run_cv(GroupKFold(n_splits), True, track_interval=True)
+
+    # Why was the original un-shuffled "5-fold CV" so close to the group result?
+    # sklearn's cv=5 for a regressor is KFold WITHOUT shuffling. If the rows
+    # happen to be sorted by entity, each fold is a contiguous block of
+    # entities -- i.e. almost a group split by accident.
+    sorted_by_group = bool((groups[:-1] <= groups[1:]).all())
+    plain_r2, _ = run_cv(KFold(n_splits, shuffle=False), False)
+    straddling = set()
+    for train_idx, test_idx in KFold(n_splits, shuffle=False).split(x):
+        straddling |= set(groups[train_idx]) & set(groups[test_idx])
+
+    # Per-entity errors under group CV (every row predicted by a model
+    # that never saw that entity).
+    err_df = pd.DataFrame(
+        {"group": groups, "abs_err": np.abs(y - group_oof)}
+    )
+    if "Status" in df.columns:
+        err_df["status"] = df["Status"].values
+    by_group = (
+        err_df.groupby("group")["abs_err"]
+        .agg(["mean", "count"])
+        .sort_values("mean", ascending=False)
+    )
+    per_group = [
+        {"group": str(g), "mean_abs_error": round(float(r["mean"]), 3), "n_rows": int(r["count"])}
+        for g, r in by_group.iterrows()
+    ]
+
+    by_status = []
+    if "status" in err_df.columns:
+        for status, sub in err_df.groupby("status"):
+            by_status.append(
+                {
+                    "status": str(status),
+                    "mean_abs_error": round(float(sub["abs_err"].mean()), 3),
+                    "n_rows": int(len(sub)),
+                    "n_groups": int(sub["group"].nunique()),
+                }
+            )
+
+    return {
+        "group_column": group_col,
+        "n_groups": int(len(set(groups))),
+        "avg_rows_per_group": round(len(y) / len(set(groups)), 1),
+        "n_splits": n_splits,
+        "random": summarize(random_r2, random_oof),
+        "group": summarize(group_r2, group_oof),
+        "unshuffled": {
+            "r2_mean": float(plain_r2.mean()),
+            "data_sorted_by_group": sorted_by_group,
+            "groups_straddling_folds": int(len(straddling)),
+        },
+        # Does the Predict page's "80%" interval still hold for entities the
+        # model has never seen? (Compare with calibration.empirical_coverage_pct,
+        # which was measured on a random split.)
+        "interval_unseen": {
+            "stated_pct": 80,
+            "coverage_pct": round(float(interval["covered"].mean() * 100), 1),
+            "mean_width_years": round(float(interval["width"].mean()), 2),
+        },
+        "per_group_error": per_group,
+        "median_group_error": round(float(by_group["mean"].median()), 3),
+        "pct_groups_over_3yrs": round(float((by_group["mean"] > 3).mean() * 100), 1),
+        "error_by_status": by_status,
+    }
 
 
 def main():
@@ -93,14 +211,27 @@ def main():
     print(f"Test MAE:  {mae:.4f}")
     print(f"Test RMSE: {rmse:.4f}")
 
-    # 5-fold cross-validation, on top of the single train/test split above,
-    # for a more robust read on how well this generalizes (a single split
-    # can get a lucky or unlucky score; CV shows the spread across folds).
-    print("Running 5-fold cross-validation...")
-    cv_model = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
-    cv_scores = cross_val_score(cv_model, x, y, cv=5, scoring="r2")
-    print(f"5-fold CV R2: mean={cv_scores.mean():.4f}, std={cv_scores.std():.4f}")
-    print(f"  fold scores: {[round(s, 4) for s in cv_scores.tolist()]}")
+    # Cross-validation, done two explicit ways so the difference is visible:
+    #   - random folds: rows are shuffled, so different years of the SAME
+    #     entity (country) can land in both train and test
+    #   - group folds: whole entities are held out, i.e. "unseen countries"
+    # The group version is the headline CV number, because it matches how
+    # the model would really be used (predicting for a country it hasn't seen).
+    print("Running cross-validation (random folds vs. held-out countries)...")
+    cv_report = compute_cv_comparison(config, df, x, y, n_estimators, random_state)
+    if cv_report is None:
+        raise ConfigError(
+            "interpolation.group_column must be set in the config (and exist in the "
+            "data) to run group cross-validation."
+        )
+    cv_scores = np.array(cv_report["group"]["fold_r2"])
+    print(f"Random-fold CV R2:   mean={cv_report['random']['r2_mean']:.4f}, std={cv_report['random']['r2_std']:.4f}")
+    print(f"Group (country) CV R2: mean={cv_scores.mean():.4f}, std={cv_scores.std():.4f}")
+    print(f"  group fold scores: {[round(s, 4) for s in cv_scores.tolist()]}")
+    print(
+        f"  out-of-fold MAE: random={cv_report['random']['oof_mae']:.3f} yrs, "
+        f"group={cv_report['group']['oof_mae']:.3f} yrs"
+    )
 
     importances = dict(
         sorted(
@@ -134,9 +265,14 @@ def main():
         "test_r2": r2,
         "test_mae": mae,
         "test_rmse": rmse,
+        # Headline CV = group folds (whole countries held out). The random-fold
+        # figures are kept alongside for comparison on the Diagnostics page.
+        "cv_method": f"GroupKFold(5) by {config.group_column}",
         "cv_r2_mean": float(cv_scores.mean()),
         "cv_r2_std": float(cv_scores.std()),
         "cv_r2_folds": [round(float(s), 4) for s in cv_scores.tolist()],
+        "cv_random_r2_mean": cv_report["random"]["r2_mean"],
+        "cv_random_r2_std": cv_report["random"]["r2_std"],
         "n_rows": len(df),
         "feature_importances": importances,
         "feature_ranges": feature_ranges(df, config),
@@ -216,6 +352,7 @@ def main():
         "partial_dependence": partial_dependence_data,
         "calibration": calibration,
         "missingness": missingness,
+        "group_cv": cv_report,
     }
     with open(DIAGNOSTICS_PATH, "w") as f:
         json.dump(diagnostics, f, indent=2)
