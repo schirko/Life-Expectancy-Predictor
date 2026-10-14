@@ -1,5 +1,14 @@
 """
-Hyperparameter tuning for the Random Forest model, via GridSearchCV.
+Hyperparameter tuning for the Random Forest model, via GridSearchCV with
+COUNTRY-HELD-OUT folds (GroupKFold).
+
+Why group folds: the data is a panel (each country appears in up to 16 years).
+Ordinary random folds put a country's other years in the training folds, so the
+search would reward settings that memorize countries. Holding out whole
+countries asks the question we actually care about: which settings predict
+countries the model has never seen? The final test set is also held out by
+country (GroupShuffleSplit), so the tuned-vs-default comparison is made on
+unseen countries too.
 
 Kept as a separate, optional script from train_model.py because a full grid
 search takes much longer than a normal training run (order of a minute,
@@ -24,7 +33,9 @@ import time
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
-from sklearn.model_selection import GridSearchCV, train_test_split
+import numpy as np
+from scipy.stats import spearmanr
+from sklearn.model_selection import GridSearchCV, GroupKFold, GroupShuffleSplit
 
 from config_loader import ConfigError, load_config, validate_schema
 from data_prep import get_model_ready_df
@@ -62,25 +73,42 @@ def main():
     random_state = mp.get("random_state", 42)
     default_n_estimators = mp.get("n_estimators", 200)
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y, test_size=test_size, random_state=random_state
-    )
+    group_col = config.group_column
+    if not group_col or group_col not in df.columns:
+        raise ConfigError("Group-based tuning needs interpolation.group_column in the config.")
+    groups = df[group_col].values
+
+    # Hold out ~20% of COUNTRIES (all their years) as the final test set.
+    splitter = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+    train_idx, test_idx = next(splitter.split(x, y, groups))
+    x_train, x_test = x[train_idx], x[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+    g_train = groups[train_idx]
+    print(f"Train: {len(set(g_train))} countries; test: {len(set(groups[test_idx]))} unseen countries")
+
+    # Keep the previous (random-fold) results, if present, to compare rankings.
+    random_baseline = None
+    if os.path.exists(TUNING_RESULTS_PATH):
+        with open(TUNING_RESULTS_PATH) as f:
+            prev = json.load(f)
+        if "cv_method" not in prev:
+            random_baseline = prev
 
     n_combos = 1
     for v in PARAM_GRID.values():
         n_combos *= len(v)
     print(f"Grid: {PARAM_GRID}")
-    print(f"{n_combos} combinations x 5-fold CV = {n_combos * 5} fits. This may take a while...")
+    print(f"{n_combos} combinations x 5 country-held-out folds = {n_combos * 5} fits. This may take a while...")
 
     t0 = time.time()
     grid_search = GridSearchCV(
         RandomForestRegressor(random_state=random_state),
         PARAM_GRID,
-        cv=5,
+        cv=GroupKFold(n_splits=5),
         scoring="r2",
         n_jobs=-1,
     )
-    grid_search.fit(x_train, y_train)
+    grid_search.fit(x_train, y_train, groups=g_train)
     elapsed = time.time() - t0
     print(f"Grid search finished in {elapsed:.1f}s")
 
@@ -96,8 +124,8 @@ def main():
     default_test_r2 = r2_score(y_test, default_model.predict(x_test))
 
     print(f"\nBest params: {grid_search.best_params_}")
-    print(f"Best CV R2 (train folds): {grid_search.best_score_:.4f}")
-    print(f"Best params' test R2: {best_test_r2:.4f}")
+    print(f"Best grouped-CV R2 (train folds): {grid_search.best_score_:.4f}")
+    print(f"Best params' test R2 (unseen countries): {best_test_r2:.4f}")
     print(f"Default params' test R2 ({{'n_estimators': {default_n_estimators}}}): {default_test_r2:.4f}")
 
     # Full results table, sorted best-first, for transparency (not just the winner).
@@ -112,7 +140,28 @@ def main():
         )
     all_results.sort(key=lambda r: r["cv_r2_mean"], reverse=True)
 
+    # Does the choice of CV method change which settings look best?
+    rank_comparison = None
+    if random_baseline:
+        rand = {json.dumps(r["params"], sort_keys=True): r["cv_r2_mean"] for r in random_baseline["all_results"]}
+        pairs = [(rand[json.dumps(r["params"], sort_keys=True)], r["cv_r2_mean"])
+                 for r in all_results if json.dumps(r["params"], sort_keys=True) in rand]
+        if len(pairs) > 2:
+            rho = spearmanr([p[0] for p in pairs], [p[1] for p in pairs])[0]
+            rank_comparison = {
+                "random_cv_best_params": random_baseline["best_params"],
+                "random_cv_best_r2": random_baseline["best_cv_r2"],
+                "random_cv_worst_r2": min(p[0] for p in pairs),
+                "grouped_cv_worst_r2": min(p[1] for p in pairs),
+                "spearman_rank_correlation": round(float(rho), 3),
+                "same_winner": random_baseline["best_params"] == grid_search.best_params_,
+            }
+
     results = {
+        "cv_method": "GroupKFold(5) by " + group_col + "; test set = held-out countries",
+        "n_train_countries": int(len(set(g_train))),
+        "n_test_countries": int(len(set(groups[test_idx]))),
+        "rank_comparison": rank_comparison,
         "param_grid": PARAM_GRID,
         "n_combinations": n_combos,
         "search_time_seconds": round(elapsed, 1),

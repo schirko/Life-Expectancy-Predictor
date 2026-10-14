@@ -15,13 +15,26 @@ import sys
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import (
+    GradientBoostingRegressor,
+    HistGradientBoostingRegressor,
+    RandomForestRegressor,
+)
+from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import GroupKFold, KFold, train_test_split
 
 from config_loader import ConfigError, load_config, validate_schema
-from data_prep import feature_ranges, get_model_ready_df, missingness_report
+from data_prep import (
+    _clean_column_names,
+    _fix_implicit_nulls,
+    feature_ranges,
+    get_model_ready_df,
+    missingness_report,
+)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "config", "who_life_expectancy.yaml")
@@ -152,6 +165,175 @@ def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits
         "median_group_error": round(float(by_group["mean"].median()), 3),
         "pct_groups_over_3yrs": round(float((by_group["mean"] > 3).mean() * 100), 1),
         "error_by_status": by_status,
+        "hard_cases": compute_hard_country_analysis(config, df, y, group_oof, groups),
+    }
+
+
+def compute_hard_country_analysis(config, df, y, oof, groups, top_n=15):
+    """
+    Why are some entities (countries) hard to predict? Uses the out-of-fold
+    predictions from group CV, so every row was predicted by a model that
+    never saw that entity. Everything is computed from the data.
+
+    Reports: how concentrated the error is, whether the model shrinks toward
+    the middle (over-predicting the lowest targets, under-predicting the
+    highest), which predictors' entity averages track the error, and for the
+    hardest entities their signed bias and how many predictors had NO data
+    (so were filled with the global median) before imputation.
+    """
+    target = config.target_column
+    preds = config.predictor_columns
+    work = df[[config.group_column] + preds].copy()
+    work["actual"] = y
+    work["pred"] = oof
+    work["err"] = y - oof  # positive = model under-predicted
+    work["abs_err"] = work["err"].abs()
+    if "Status" in df.columns:
+        work["status"] = df["Status"].values
+
+    by = work.groupby(config.group_column)
+    summ = by.agg(
+        mae=("abs_err", "mean"), bias=("err", "mean"), mean_actual=("actual", "mean"),
+        n_rows=("err", "size"),
+    )
+    if "status" in work.columns:
+        summ["status"] = by["status"].first()
+    summ = summ.sort_values("mae", ascending=False)
+
+    # 1. Concentration of error
+    n_top = max(1, int(round(len(summ) * 0.10)))
+    top_set = set(summ.index[:n_top])
+    keep = ~work[config.group_column].isin(top_set)
+    concentration = {
+        "top_pct": 10,
+        "n_top_groups": n_top,
+        "share_of_total_error_pct": round(float(work.loc[~keep, "abs_err"].sum() / work["abs_err"].sum() * 100), 1),
+        "r2_all": round(float(r2_score(y, oof)), 3),
+        "r2_without_top": round(float(r2_score(y[keep.values], oof[keep.values])), 3),
+        "hardest_group": str(summ.index[0]),
+        "hardest_mae": round(float(summ["mae"].iloc[0]), 2),
+        "r2_without_hardest": round(float(r2_score(
+            y[(work[config.group_column] != summ.index[0]).values],
+            oof[(work[config.group_column] != summ.index[0]).values])), 3),
+    }
+
+    # 2. Shrinkage toward the middle: signed error by band of the true target
+    edges = np.unique(np.quantile(y, [0, 0.1, 0.3, 0.7, 0.9, 1.0]))
+    bands = pd.cut(work["actual"], edges, include_lowest=True)
+    labels = ["lowest 10%", "low", "middle 40%", "high", "highest 10%"]
+    by_band = []
+    for i, (band, sub) in enumerate(work.groupby(bands, observed=True)):
+        by_band.append({
+            "band": labels[i] if len(edges) == 6 else str(band),
+            "range": f"{band.left:.0f}-{band.right:.0f}",
+            "n_rows": int(len(sub)),
+            "bias": round(float(sub["err"].mean()), 2),
+            "mean_abs_error": round(float(sub["abs_err"].mean()), 2),
+        })
+
+    # 3. Which predictors' entity averages track entity error?
+    feat_means = by[preds].mean()
+    corr_rows = []
+    for p in preds:
+        rho = pd.concat([feat_means[p], summ["mae"]], axis=1).corr(method="spearman").iloc[0, 1]
+        if pd.notnull(rho):
+            corr_rows.append({"feature": p, "spearman": round(float(rho), 2)})
+    corr_rows.sort(key=lambda r: -abs(r["spearman"]))
+
+    # 4. Missing-data check: predictors with NO data for an entity, before imputation
+    raw = _fix_implicit_nulls(_clean_column_names(pd.read_csv(config.source_csv), config), config)
+    gcol = config.group_column
+    present = [p for p in preds if p in raw.columns]
+    empty = raw.groupby(gcol)[present].apply(lambda t: t.isna().all()).sum(axis=1)
+    summ["empty_predictors"] = empty.reindex(summ.index).fillna(0).astype(int)
+    summ["empty_group"] = pd.cut(summ["empty_predictors"], [-1, 0, 1, 99], labels=["0", "1", "2+"])
+    missing_check = [
+        {"empty_predictors": str(k), "n_groups": int(len(v)),
+         "mean_abs_error": round(float(v["mae"].mean()), 2)}
+        for k, v in summ.groupby("empty_group", observed=True)
+    ]
+    rho_missing = summ[["mae", "empty_predictors"]].corr(method="spearman").iloc[0, 1]
+
+    hardest = []
+    for g, r in summ.head(top_n).iterrows():
+        hardest.append({
+            "group": str(g),
+            "mean_abs_error": round(float(r["mae"]), 2),
+            "bias": round(float(r["bias"]), 2),
+            "mean_actual": round(float(r["mean_actual"]), 1),
+            "status": str(r["status"]) if "status" in summ.columns else "",
+            "empty_predictors": int(r["empty_predictors"]),
+        })
+    return {
+        "concentration": concentration,
+        "by_target_band": by_band,
+        "feature_error_correlations": corr_rows[:5],
+        "missing_data_check": missing_check,
+        "missing_data_spearman": round(float(rho_missing), 2),
+        "hardest": hardest,
+    }
+
+
+def compute_model_showdown(config, df, x, y, groups, n_estimators, random_state, n_splits=5):
+    """
+    Score several model families on the SAME country-held-out folds, so the
+    only thing that differs is the algorithm. The point is diagnostic: if a
+    different algorithm also misses the same countries by the same amount,
+    the cause is the data, not the Random Forest.
+
+    Returns None if no group column is configured.
+    """
+    group_col = config.group_column
+    if not group_col or group_col not in df.columns:
+        return None
+
+    factories = {
+        "Random Forest (deployed)": lambda: RandomForestRegressor(
+            n_estimators=n_estimators, random_state=random_state, n_jobs=-1
+        ),
+        "Gradient Boosting": lambda: GradientBoostingRegressor(random_state=random_state),
+        "Hist Gradient Boosting": lambda: HistGradientBoostingRegressor(random_state=random_state),
+        "Linear Regression": lambda: make_pipeline(StandardScaler(), LinearRegression()),
+    }
+    lo_cut, hi_cut = np.quantile(y, [0.10, 0.90])
+    n_top = max(1, int(round(len(set(groups)) * 0.10)))
+
+    rows, country_err = [], {}
+    for name, make in factories.items():
+        oof = np.zeros(len(y))
+        fold_r2 = []
+        for tr, te in GroupKFold(n_splits).split(x, y, groups):
+            m = make().fit(x[tr], y[tr])
+            oof[te] = m.predict(x[te])
+            fold_r2.append(float(r2_score(y[te], oof[te])))
+        err = y - oof
+        per_country = pd.Series(np.abs(err)).groupby(groups).mean().sort_values(ascending=False)
+        country_err[name] = per_country
+        rows.append({
+            "model": name,
+            "r2_mean": round(float(np.mean(fold_r2)), 4),
+            "r2_std": round(float(np.std(fold_r2)), 4),
+            "mae": round(float(np.abs(err).mean()), 3),
+            "bias_lowest_10pct": round(float(err[y <= lo_cut].mean()), 2),
+            "bias_highest_10pct": round(float(err[y >= hi_cut].mean()), 2),
+            "hardest_country": str(per_country.index[0]),
+            "hardest_country_mae": round(float(per_country.iloc[0]), 2),
+            "top10pct_error_share": round(float(per_country.head(n_top).sum() / per_country.sum() * 100), 1),
+        })
+
+    # Do the models agree on WHICH countries are hard? (Spearman on country error.)
+    base = country_err["Random Forest (deployed)"]
+    for r in rows:
+        other = country_err[r["model"]].reindex(base.index)
+        r["rank_agreement_with_rf"] = round(float(base.corr(other, method="spearman")), 2)
+
+    # Hardest countries shared by every model (top-n in all lists)
+    shared = set.intersection(*[set(c.index[:n_top]) for c in country_err.values()])
+    return {
+        "n_splits": n_splits,
+        "models": rows,
+        "n_top_countries": n_top,
+        "hard_in_every_model": sorted(shared),
     }
 
 
@@ -224,6 +406,8 @@ def main():
             "interpolation.group_column must be set in the config (and exist in the "
             "data) to run group cross-validation."
         )
+    print("Comparing model families on the same country-held-out folds...")
+    showdown = compute_model_showdown(config, df, x, y, df[config.group_column].values, n_estimators, random_state)
     cv_scores = np.array(cv_report["group"]["fold_r2"])
     print(f"Random-fold CV R2:   mean={cv_report['random']['r2_mean']:.4f}, std={cv_report['random']['r2_std']:.4f}")
     print(f"Group (country) CV R2: mean={cv_scores.mean():.4f}, std={cv_scores.std():.4f}")
@@ -353,6 +537,7 @@ def main():
         "calibration": calibration,
         "missingness": missingness,
         "group_cv": cv_report,
+        "model_showdown": showdown,
     }
     with open(DIAGNOSTICS_PATH, "w") as f:
         json.dump(diagnostics, f, indent=2)

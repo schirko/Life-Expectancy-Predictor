@@ -86,6 +86,7 @@ with st.expander("📖 What Do These Indicators Mean?"):
 col_a, col_b = st.columns(2)
 
 values = {}
+defaults = {}  # the value each control starts at (the dataset median)
 
 with col_a:
     st.markdown("**Sliders**")
@@ -95,6 +96,7 @@ with col_a:
         feat = spec["column"]
         lo, hi, med = ranges[feat]
         step = (hi - lo) / 100 if hi > lo else 1.0
+        defaults[feat] = round(med, 2)
         values[feat] = st.slider(
             spec.get("label", feat),
             min_value=round(lo, 2),
@@ -112,6 +114,7 @@ with col_b:
     for spec in number_specs:
         feat = spec["column"]
         lo, hi, med = ranges[feat]
+        defaults[feat] = round(med, 3)
         values[feat] = st.number_input(
             spec.get("label", feat),
             min_value=round(lo, 3),
@@ -128,6 +131,24 @@ for feat in predictor_cols:
         _, _, med = ranges.get(feat, (0, 0, 0))
         values[feat] = med
 
+# ---- Thin-data check ----
+# During testing, the model's worst miss was a country with no real data for
+# three inputs: those had been filled with the all-country median, so the model
+# saw an "average" country and predicted accordingly. The same thing happens
+# here if most controls are left at their starting value (the median).
+THIN_DATA_SHARE = 0.5  # warn when at least this share of visible inputs is untouched
+untouched = [
+    FEATURE_LABELS.get(p["column"], p["column"])
+    for p in visible_predictors
+    if p["column"] in defaults and abs(values[p["column"]] - defaults[p["column"]]) < 1e-9
+]
+n_visible = len([p for p in visible_predictors if p["column"] in defaults])
+thin_data = n_visible > 0 and len(untouched) / n_visible >= THIN_DATA_SHARE
+st.caption(
+    f"{len(untouched)} of {n_visible} inputs are still at their starting value "
+    "(the dataset median)."
+)
+
 st.divider()
 
 predict_clicked = st.button("🔮 Predict", type="primary", use_container_width=False)
@@ -139,6 +160,18 @@ if predict_clicked:
     # Spread across the forest's individual trees, as a rough uncertainty band
     tree_preds = np.array([tree.predict(x)[0] for tree in model.estimators_])
     lower, upper = np.percentile(tree_preds, [10, 90])
+
+    if thin_data:
+        st.warning(
+            f"**Thin-data warning: {len(untouched)} of {n_visible} inputs are still at their "
+            "starting value (the dataset median).** The model treats those as typical values, "
+            "so this prediction will drift toward the all-country average. During validation, "
+            "the model's biggest miss came from a country whose inputs had been filled with "
+            "medians in exactly this way. Enter real values for more inputs for a more "
+            "meaningful estimate."
+        )
+        with st.expander("Which inputs are untouched?"):
+            st.write(", ".join(untouched))
 
     st.subheader("Result")
     col1, col2 = st.columns([1, 2])

@@ -22,7 +22,7 @@ Use the sidebar to navigate:
 
 - **📊 Dashboard** — explore trends, correlations, and country rankings
 - **🔮 Predict** — enter indicator values and get a predicted life expectancy
-- **🔬 Diagnostics** — residuals, permutation importance, partial dependence, unseen-country validation, uncertainty calibration, hyperparameter tuning, and data quality
+- **🔬 Diagnostics** — residuals, permutation importance, partial dependence, unseen-country validation, a four-model showdown, uncertainty calibration, hyperparameter tuning, and data quality
 
 ---
 """

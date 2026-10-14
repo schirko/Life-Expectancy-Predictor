@@ -62,7 +62,7 @@ dependence, uncertainty calibration, missingness report). Saves:
 python tune_hyperparameters.py
 ```
 
-Runs a GridSearchCV (36 combinations × 5-fold CV) and saves
+Runs a GridSearchCV (36 combinations × 5 country-held-out folds via GroupKFold, tested on held-out countries) and saves
 `model/tuning_results.json`. Takes a few minutes — kept as a separate
 script from `train_model.py` so normal training stays fast. The
 Diagnostics page's "Hyperparameter Tuning" tab shows its results if
@@ -134,3 +134,7 @@ the cleaning pipeline and Predict page would work unchanged.
   out the config-driven claim end-to-end
 - Deploy via Streamlit Community Cloud for a shareable public link (done!)
 
+
+## Documentation
+
+Full documentation (setup, methodology, how to interpret each diagnostic, and a what/why/how build log) is in [`docs/APP_DOCUMENTATION.md`](docs/APP_DOCUMENTATION.md).
