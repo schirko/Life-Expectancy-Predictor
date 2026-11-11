@@ -76,6 +76,17 @@ streamlit run Home.py
 
 This opens the app in your browser (usually `http://localhost:8501`).
 
+## Deployment
+
+The live app is at <https://lifeexpectancy.intellidec.net>. It is built from this repository's `Dockerfile` by Coolify on a VPS (port 8501, branch `master`). To run the same container locally:
+
+```bash
+docker build -t life-expectancy .
+docker run -p 8501:8501 life-expectancy
+```
+
+Details are in `docs/APP_DOCUMENTATION.md` under "Deployment".
+
 ## Swapping in a different dataset
 
 This app is **config-driven**: none of the Python code hardcodes column
@@ -132,7 +143,7 @@ the cleaning pipeline and Predict page would work unchanged.
 - Data quality / missingness-before-and-after visualization
 - A second example config for a genuinely different WHO dataset, to prove
   out the config-driven claim end-to-end
-- Deploy via Streamlit Community Cloud for a shareable public link (done!)
+- ~~Deploy via Streamlit Community Cloud for a shareable public link~~ (done, then moved to Scott's own server on 2026-11-11: <https://lifeexpectancy.intellidec.net>)
 
 
 ## Documentation

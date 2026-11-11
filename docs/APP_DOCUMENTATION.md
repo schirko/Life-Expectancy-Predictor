@@ -1,6 +1,8 @@
 # Life Expectancy Predictor — App Documentation
 
 > Snapshot exported from the live documentation Doc on 2026-10-13. The Doc is the master copy; refresh this file after each milestone.
+>
+> **2026-11-11:** milestone 13 ("Start from a real country") was written directly into this file. The live Doc does not have it yet and needs the same additions: the paragraph under "Using the Predict Page" and build-log row 13.
 
 A Streamlit app that explores WHO life expectancy data (2000–2015) and predicts life expectancy from health and economic indicators using a Random Forest model, with SHAP-based explanations for each prediction.
 
@@ -59,7 +61,7 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    ```
 5. Open `http://localhost:8501` in a browser.
 
-**Deployment:** the app is deployed on Streamlit Community Cloud, connected to the GitHub repo at [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp). Pushing to the `master` branch triggers an automatic redeploy.
+**Deployment:** since 2026-11-11 the app runs on Scott's own server (a VPS managed with Coolify) at <https://lifeexpectancy.intellidec.net>, built from the GitHub repo at [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp). See "Deployment" below.
 
 ## Data and Methodology
 
@@ -171,6 +173,14 @@ Sidebar filters — Year range, Country status (Developed/Developing), and Count
 
 Enter values via 7 sliders (bounded/rate-style indicators like Adult Mortality and immunization percentages) and 5 direct-entry fields (Alcohol, expenditure, Income Composition, Schooling). A 13th feature, Measles, feeds the model at its dataset median but has no visible control. An expandable glossary defines every indicator in plain English.
 
+**Start from a real country (added 2026-11-11):** a box at the top of the page lets a visitor pick a country and a year and click **Fill in these values**. The controls then show that country-year's values from the cleaned data, and a green line states the recorded life expectancy. From there the visitor can change any input to ask a what-if question. **Reset to typical values** puts every control back to the all-country median. Three things to know:
+
+- With no inputs changed, the result compares the model's estimate with the recorded figure. A close match is expected, because the model saw most country-years in training; the page says so and points to Diagnostics → Unseen Countries.
+- With inputs changed, the result shows the estimate with the changes, the difference from the model's estimate for the country as recorded, and a table of what was changed. A caption states that this shows how the model's estimate moves, not what would happen in that country.
+- "Recorded values" come from the cleaned data, so where the original records had a gap the value is the pipeline's fill-in (interpolation or a median). The page says this in one sentence.
+
+How it works: every Streamlit control stores its current value in `st.session_state` under its `key`. The page seeds those entries with the medians on the first visit, and the two buttons run small functions (`load_country`, `reset_inputs`) that overwrite the entries before the page redraws. The controls no longer pass `value=`, because a control cannot take a starting value from both places. The country's values are also kept in `st.session_state["loaded_from"]` so the page can tell which inputs were changed. The feature only appears when the data has `Country` and `Year` columns.
+
 Clicking **Predict** returns three things, in order:
 
 1. **Predicted life expectancy**, with an uncertainty range from the spread across the Random Forest's 200 individual trees (~80% of trees fell within the stated range) — a rough indicator, not a statistically rigorous confidence interval.
@@ -202,7 +212,20 @@ To point the app at a different, similarly-shaped WHO-style CSV:
 
 ## Deployment
 
-The app is deployed on **Streamlit Community Cloud**, connected to [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp) (`master` branch, entry point `Home.py`). Pushing to that branch triggers an automatic rebuild and redeploy — no manual deployment step required after the initial setup.
+Since 2026-11-11 the app runs on Scott's own server, a VPS managed with **Coolify**, at <https://lifeexpectancy.intellidec.net>. It still uses the Streamlit *library* (a Python package installed on the server); it no longer depends on Streamlit's hosting service.
+
+| Setting | Value |
+| --- | --- |
+| Source | [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp), branch `master`, through Coolify's GitHub App |
+| Build | `Dockerfile` at the top of the repository (Python 3.12, installs `requirements.txt`, starts `streamlit run Home.py`) |
+| Port | 8501 |
+| Address | `https://lifeexpectancy.intellidec.net` (an A record for `lifeexpectancy` points at the VPS; Coolify obtains the HTTPS certificate) |
+| Health check | `/_stcore/health`, defined in the `Dockerfile` |
+| Secrets | None. The app reads only files in the repository. |
+
+To update the live app: push to `master`, then redeploy in Coolify (automatic if Coolify's auto-deploy is on for this resource). `.dockerignore` keeps the virtual environment, notes and editor settings out of the build.
+
+**Before 2026-11-11** the app was hosted on Streamlit Community Cloud, which redeployed on every push to `master`. That copy is to be deleted once the server copy is confirmed.
 
 ## Build Log: What, Why and How
 
@@ -222,5 +245,13 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 10. Hardest-countries investigation | Tested why some countries are missed badly: error concentration, missing data, and shrinkage toward the middle | Knowing where and why a model fails is more convincing in an interview than a single score, and it shows which fix is worth building | Out-of-fold predictions from GroupKFold, grouped by country; signed error by band of true value; Spearman correlations; result: worst 10% of countries carry 22% of error, Somalia is a data problem, extremes are pulled toward the average |
 | 11. Thin-data warning | Predict page counts untouched inputs and warns when half or more are still at the median | Median-filled inputs made the model predict an average country (Somalia, 11 years off); users should know when they are in that situation | `pages/2_Predict.py` records each control's default, compares entered values to it, shows a live count, and adds an `st.warning` before the result; tested headlessly with all-default and mostly-changed inputs |
 | 12. Model Showdown | Scored Random Forest, Gradient Boosting, Hist Gradient Boosting and Linear Regression on identical country-held-out folds | Separates "the algorithm is the problem" from "the data is the problem" before spending effort on a different model | `compute_model_showdown()` in `train_model.py` reuses `GroupKFold(5)`; result: R² 0.902 / 0.895 / 0.904 / 0.831, same hard countries across models, so keep the Random Forest |
+| 13. Start from a real country | Predict page can fill its 12 controls from any country and year in the data, then compares the estimate with the recorded figure or shows the effect of the visitor's changes | Visitors do not know indicator values by heart; starting every control at the median gave them nothing recognizable to work from. First step in preparing the app as a free tool for IntelliDec | `pages/2_Predict.py`: control values seeded in `st.session_state`, `load_country` and `reset_inputs` button callbacks, a `loaded_from` record, a changed-inputs table and a metric with the difference; thin-data check no longer counts a real value that equals the median; tested headlessly with `streamlit.testing.v1.AppTest` (first visit, all-median predict, fill, predict as recorded, what-if, reset, second country) |
+| 14. Move to own server | App runs on Scott's VPS at `lifeexpectancy.intellidec.net`, built by Coolify from a `Dockerfile` | Scott wanted his last app off Streamlit's hosting; an own address also suits its new role as a free tool on IntelliDec | Added `Dockerfile` and `.dockerignore`; Coolify resource with build strategy Dockerfile, port 8501, domain with HTTPS; DNS A record for the subdomain. Problems met and fixed on the way: the Dockerfile had not been pushed (build failed with "no such file"), the port defaulted to 3000, and the browser warned "not secure" until the app was running and the certificate issued |
+
+**Found while building milestone 13 (not yet fixed):**
+
+- **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. Every chart that splits by status inherits this.
+- **Health expenditure stored as zero.** `Pct_Expenditure` is exactly 0 in 606 of 2,928 cleaned rows, across 181 countries (for example Canada, Australia and Austria in 2015). These are almost certainly missing values stored as zero, which the cleaning rules do not treat as missing for this column. The feature carries about 0.5% of the model's built-in importance, so the effect on predictions is small, but a visitor who loads Canada now sees a health expenditure of 0.
+- **Deprecated option.** `use_container_width`, used throughout the app, is deprecated in current Streamlit and prints a warning on every run.
 
 **Still open:** test a shrinkage correction, source outside data on conflict and epidemics, a developed vs. developing fairness check, automated tests, and removing the full-dataset winsorizing leak.
