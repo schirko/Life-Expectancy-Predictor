@@ -53,6 +53,13 @@ predictor_cols = meta["predictor_cols"]
 ranges = meta["feature_ranges"]
 target_col = meta.get("target_col", "Life_Expectancy")
 
+# Columns that identify one row of the data (one country in one year). They
+# power the "Start From a Real Country" box below. If a different dataset has
+# no such columns, that box is simply not shown and the page works as before.
+ENTITY_COL = "Country"
+TIME_COL = "Year"
+has_entities = ENTITY_COL in df.columns and TIME_COL in df.columns
+
 st.markdown(
     f"Enter values for the indicators below, then click **Predict** to estimate "
     f"{meta.get('dataset_name', 'the target')} using the trained Random Forest model "
@@ -71,6 +78,110 @@ FEATURE_DESCRIPTIONS = {p["column"]: p.get("description", "") for p in predictor
 visible_predictors = [p for p in predictors_meta if p.get("show_in_ui", True)]
 slider_specs = [p for p in visible_predictors if p.get("input_type") == "slider"]
 number_specs = [p for p in visible_predictors if p.get("input_type") != "slider"]
+
+
+
+def widget_key(spec):
+    """The session-state name of the control for one indicator."""
+    prefix = "slider" if spec.get("input_type") == "slider" else "num"
+    return f"{prefix}_{spec['column']}"
+
+
+def widget_bounds(spec):
+    """(lowest allowed, highest allowed, decimal places) for one indicator's control."""
+    lo, hi, _ = ranges[spec["column"]]
+    if spec.get("input_type") == "slider":
+        return round(lo, 2), round(hi, 2), 2
+    return round(lo, 3), round(hi * 1.5, 3), 3  # allow entering somewhat beyond observed max
+
+
+def median_value(spec):
+    """The value a control starts at: the all-country median, rounded like the control."""
+    _, _, med = ranges[spec["column"]]
+    return round(med, widget_bounds(spec)[2])
+
+
+def load_country():
+    """Button callback: copy one country-year's recorded values into the controls."""
+    country = st.session_state.get("start_country")
+    year = st.session_state.get("start_year")
+    if country is None or year is None:
+        return
+    match = df[(df[ENTITY_COL] == country) & (df[TIME_COL] == year)]
+    if match.empty:
+        return
+    row = match.iloc[0]
+    loaded_values = {}
+    for spec in visible_predictors:
+        lo_w, hi_w, places = widget_bounds(spec)
+        v = float(min(max(round(float(row[spec["column"]]), places), lo_w), hi_w))
+        st.session_state[widget_key(spec)] = v
+        loaded_values[spec["column"]] = v
+    for feat in predictor_cols:  # predictors with no visible control (e.g. Measles)
+        if feat not in loaded_values:
+            loaded_values[feat] = float(row[feat])
+    st.session_state["loaded_from"] = {
+        "country": str(country),
+        "year": int(year),
+        "actual": float(row[target_col]),
+        "values": loaded_values,
+    }
+
+
+def reset_inputs():
+    """Button callback: put every control back to the all-country median."""
+    for spec in visible_predictors:
+        st.session_state[widget_key(spec)] = median_value(spec)
+    st.session_state.pop("loaded_from", None)
+
+
+# Streamlit keeps each control's current value in st.session_state under the
+# control's key. Seeding those entries here (first visit only) is what lets the
+# buttons above overwrite them later.
+for spec in visible_predictors:
+    if widget_key(spec) not in st.session_state:
+        st.session_state[widget_key(spec)] = median_value(spec)
+
+if has_entities:
+    st.subheader("Start From a Real Country")
+    st.markdown(
+        "Pick a country and year to fill in its recorded values. Then change any "
+        "input below to ask a *what if* question and see how the estimate moves. "
+        "Where the original records had a gap, the value filled in is the app's own estimate."
+    )
+    pick_a, pick_b = st.columns([2, 1])
+    with pick_a:
+        picked_country = st.selectbox(
+            "Country",
+            sorted(df[ENTITY_COL].unique()),
+            index=None,
+            placeholder="Choose a country",
+            key="start_country",
+        )
+    with pick_b:
+        year_options = (
+            sorted(df.loc[df[ENTITY_COL] == picked_country, TIME_COL].unique().tolist(), reverse=True)
+            if picked_country is not None
+            else []
+        )
+        st.selectbox("Year", year_options, key="start_year", disabled=picked_country is None)
+    btn_a, btn_b, _ = st.columns([1, 1, 2])
+    with btn_a:
+        st.button(
+            "Fill in these values",
+            on_click=load_country,
+            disabled=picked_country is None,
+            use_container_width=True,
+        )
+    with btn_b:
+        st.button("Reset to typical values", on_click=reset_inputs, use_container_width=True)
+
+loaded = st.session_state.get("loaded_from")
+if loaded:
+    st.success(
+        f"Started from **{loaded['country']}, {loaded['year']}**. "
+        f"Recorded life expectancy that year: **{loaded['actual']:.1f} years**."
+    )
 
 st.subheader("Indicators")
 
@@ -96,15 +207,15 @@ with col_a:
         feat = spec["column"]
         lo, hi, med = ranges[feat]
         step = (hi - lo) / 100 if hi > lo else 1.0
-        defaults[feat] = round(med, 2)
+        defaults[feat] = median_value(spec)
+        # No value= here: the starting value is the session-state entry seeded above.
         values[feat] = st.slider(
             spec.get("label", feat),
             min_value=round(lo, 2),
             max_value=round(hi, 2),
-            value=round(med, 2),
             step=round(step, 2) if step > 0 else 1.0,
             help=spec.get("description", ""),
-            key=f"slider_{feat}",
+            key=widget_key(spec),
         )
 
 with col_b:
@@ -114,22 +225,33 @@ with col_b:
     for spec in number_specs:
         feat = spec["column"]
         lo, hi, med = ranges[feat]
-        defaults[feat] = round(med, 3)
+        defaults[feat] = median_value(spec)
         values[feat] = st.number_input(
             spec.get("label", feat),
             min_value=round(lo, 3),
             max_value=round(hi * 1.5, 3),  # allow entering somewhat beyond observed max
-            value=round(med, 3),
             help=f"{spec.get('description', '')} (Observed range in data: {lo:.2f} – {hi:.2f})",
-            key=f"num_{feat}",
+            key=widget_key(spec),
         )
 
 # Fill in any remaining predictor columns not shown in the UI (e.g. Measles)
-# using their dataset median, so the model always gets a full feature vector.
+# so the model always gets a full feature vector: the loaded country's recorded
+# value when a country is loaded, otherwise the dataset median.
 for feat in predictor_cols:
     if feat not in values:
-        _, _, med = ranges.get(feat, (0, 0, 0))
-        values[feat] = med
+        if loaded and feat in loaded["values"]:
+            values[feat] = loaded["values"][feat]
+        else:
+            _, _, med = ranges.get(feat, (0, 0, 0))
+            values[feat] = med
+
+# Which inputs differ from the loaded country's recorded values (the "what if").
+changed = []
+if loaded:
+    for p in visible_predictors:
+        feat = p["column"]
+        if abs(values[feat] - loaded["values"][feat]) > 1e-9:
+            changed.append((feat, loaded["values"][feat], values[feat]))
 
 # ---- Thin-data check ----
 # During testing, the model's worst miss was a country with no real data for
@@ -137,17 +259,33 @@ for feat in predictor_cols:
 # saw an "average" country and predicted accordingly. The same thing happens
 # here if most controls are left at their starting value (the median).
 THIN_DATA_SHARE = 0.5  # warn when at least this share of visible inputs is untouched
+
+
+def is_untouched(feat):
+    """True when an input is still at the median and that median is not a real recorded value."""
+    if abs(values[feat] - defaults[feat]) > 1e-9:
+        return False
+    if loaded and abs(values[feat] - loaded["values"][feat]) < 1e-9:
+        return False  # the loaded country's real value just happens to equal the median
+    return True
+
+
 untouched = [
     FEATURE_LABELS.get(p["column"], p["column"])
     for p in visible_predictors
-    if p["column"] in defaults and abs(values[p["column"]] - defaults[p["column"]]) < 1e-9
+    if p["column"] in defaults and is_untouched(p["column"])
 ]
 n_visible = len([p for p in visible_predictors if p["column"] in defaults])
 thin_data = n_visible > 0 and len(untouched) / n_visible >= THIN_DATA_SHARE
-st.caption(
-    f"{len(untouched)} of {n_visible} inputs are still at their starting value "
-    "(the dataset median)."
-)
+if loaded:
+    st.caption(
+        f"{len(changed)} of {n_visible} inputs changed from {loaded['country']}'s {loaded['year']} values."
+    )
+else:
+    st.caption(
+        f"{len(untouched)} of {n_visible} inputs are still at their starting value "
+        "(the dataset median)."
+    )
 
 st.divider()
 
@@ -176,8 +314,36 @@ if predict_clicked:
     st.subheader("Result")
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.metric(f"Predicted {meta.get('dataset_name', 'Value')}", f"{prediction:.1f} years")
-        st.caption(f"~80% of the model's trees predicted between {lower:.1f} and {upper:.1f} years.")
+        if loaded and changed:
+            # What-if: compare against the model's estimate for the country exactly as recorded.
+            x_recorded = np.array([[loaded["values"][c] for c in predictor_cols]])
+            as_recorded = model.predict(x_recorded)[0]
+            st.metric(
+                "Estimate With Your Changes",
+                f"{prediction:.1f} years",
+                delta=f"{prediction - as_recorded:+.1f} years vs. {loaded['country']} as recorded",
+            )
+            st.caption(f"~80% of the model's trees predicted between {lower:.1f} and {upper:.1f} years.")
+            st.caption(
+                f"Model's estimate for {loaded['country']}, {loaded['year']} as recorded: "
+                f"{as_recorded:.1f} years. Recorded life expectancy: {loaded['actual']:.1f} years."
+            )
+        elif loaded:
+            st.metric(
+                f"Model's Estimate for {loaded['country']}, {loaded['year']}",
+                f"{prediction:.1f} years",
+                delta=f"{prediction - loaded['actual']:+.1f} years vs. the recorded {loaded['actual']:.1f}",
+                delta_color="off",
+            )
+            st.caption(f"~80% of the model's trees predicted between {lower:.1f} and {upper:.1f} years.")
+            st.caption(
+                "A close match is expected here: the model saw most country-years "
+                "during training. For how it does on countries it has never seen, "
+                "see Diagnostics → Unseen Countries."
+            )
+        else:
+            st.metric(f"Predicted {meta.get('dataset_name', 'Value')}", f"{prediction:.1f} years")
+            st.caption(f"~80% of the model's trees predicted between {lower:.1f} and {upper:.1f} years.")
 
     with col2:
         fig = go.Figure()
@@ -203,6 +369,28 @@ if predict_clicked:
             height=350,
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    if loaded and changed:
+        st.markdown(f"**What you changed from {loaded['country']}'s {loaded['year']} values**")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Indicator": FEATURE_LABELS.get(feat, feat),
+                        "Recorded": recorded,
+                        "Your Value": yours,
+                    }
+                    for feat, recorded, yours in changed
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(
+            "This shows how the model's estimate moves when the inputs change. It "
+            "reflects patterns across many countries, not proof of what would happen "
+            f"in {loaded['country']} if these indicators changed."
+        )
 
     st.subheader("Why This Prediction (SHAP)")
     explainer = load_explainer(model)

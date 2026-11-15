@@ -1,0 +1,165 @@
+<!doctype html>
+<!-- Template for the project page. Edit this file, then run: python -m site_build.build_site
+     Placeholders look like $${name}; a literal dollar sign is written $$$$. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Life Expectancy Predictor</title>
+<meta name="description" content="A Random Forest model of life expectancy in ${n_countries} countries, tested honestly on countries it had never seen. Live app, code and full analysis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --ink: #1c211e; --muted: #4a524d; --line: #e2e0d8;
+  --accent: #2E6A4C; --warm: #B26B16;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151a17; --surface: #1d2420; --ink: #eceae4; --muted: #b0b8b2; --line: #34403a; --accent: #6fc79a; --warm: #e0a85a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.6 Inter, system-ui, sans-serif; }
+a { color: var(--accent); }
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+header { padding: 56px 0 28px; }
+.kicker { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1, h2 { font-family: "Space Grotesk", Inter, system-ui, sans-serif; }
+h1 { font-size: clamp(34px, 6vw, 54px); line-height: 1.08; margin: 10px 0 18px; }
+h2 { font-size: 28px; margin: 56px 0 12px; }
+.lede { font-size: 19px; color: var(--muted); max-width: 740px; margin: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.btn { display: inline-block; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line);
+       background: var(--surface); color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 32px 0 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 16px; }
+.stat .v { font-family: "Space Grotesk", Inter, sans-serif; font-size: 38px; font-weight: 700; line-height: 1; color: var(--accent); }
+.stat .v.warm { color: var(--warm); }
+.stat .l { color: var(--muted); font-size: 14.5px; margin-top: 8px; line-height: 1.4; }
+figure { margin: 24px 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+figure img { width: 100%; height: auto; display: block; }
+figcaption { color: #4a524d; font-size: 14px; padding: 8px 6px 2px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.findings { padding-left: 0; list-style: none; margin: 0; }
+.findings li { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+               border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+.findings b { display: block; margin-bottom: 2px; }
+.steps { counter-reset: s; list-style: none; padding: 0; }
+.steps li { counter-increment: s; position: relative; padding: 0 0 14px 44px; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%;
+                    background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; display: grid; place-items: center; }
+.nbs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.nbs li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+.nbs a { text-decoration: none; color: var(--ink); font-weight: 600; display: flex; gap: 12px; align-items: baseline; }
+.nbs a:hover .nbtitle { color: var(--accent); text-decoration: underline; }
+.nbs .num { color: var(--accent); min-width: 24px; }
+.nbs .blurb { display: block; color: var(--muted); font-size: 15px; margin-left: 36px; }
+.note { color: var(--muted); font-size: 15.5px; }
+footer { margin: 64px 0 40px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14.5px; }
+@media (max-width: 560px) { body { font-size: 16px; } .stat .v { font-size: 32px; } .nbs .blurb { margin-left: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Data science project · WHO life expectancy, ${years}</div>
+  <h1>Life Expectancy Predictor</h1>
+  <p class="lede">A machine-learning model that estimates a country's life expectancy from health and economic
+  indicators, built on ${n_rows} country-year records from ${n_countries} countries. The focus is honesty: how well does it
+  do on a country it has never seen, and where does it fail?</p>
+  <div class="links">
+    <a class="btn primary" href="${live_app}">Open the live app</a>
+    <a class="btn" href="#findings">Key findings</a>
+    <a class="btn" href="#notebooks">Read the analysis</a>
+    <a class="btn" href="${github}">View code on GitHub</a>
+  </div>
+</header>
+
+<section class="stats" aria-label="Headline numbers">
+  <div class="stat"><div class="v">${r2_random}</div><div class="l">R&sup2; on a random split. Looks great, but a country's other years leak into training.</div></div>
+  <div class="stat"><div class="v">${r2_group}</div><div class="l">R&sup2; on countries held out entirely. The honest number.</div></div>
+  <div class="stat"><div class="v warm">${miss_random} &rarr; ${miss_group}</div><div class="l">Average miss in years, random split vs unseen countries</div></div>
+  <div class="stat"><div class="v">${hiv_share}%</div><div class="l">of the Random Forest's built-in importance goes to one input, HIV/AIDS deaths</div></div>
+</section>
+
+<figure>
+  <img src="images/two_scores.png" alt="Line chart of R-squared across five cross-validation folds. Random splits score about 0.96; folds that hold out whole countries score between 0.88 and 0.94.">
+  <figcaption>The same model scored two ways. Holding out whole countries is the fair test of predicting somewhere new.</figcaption>
+</figure>
+
+<h2 id="findings">Key findings</h2>
+<ul class="findings">
+  <li><b>The headline score was too good.</b> A random train/test split gives R&sup2; ${r2_random}, because other years of the same
+  country sit in the training data. Holding out whole countries drops it to ${r2_group}, and the average miss roughly doubles
+  (${miss_random} to ${miss_group} years). The lower number is the one to trust.</li>
+  <li><b>Three inputs do most of the work.</b> HIV/AIDS deaths, adult mortality and the income-composition index lead by
+  permutation importance (the drop in accuracy when an input is scrambled), which agrees with the model's built-in ranking.</li>
+  <li><b>Tuning didn't help.</b> A 36-setting grid search scored with country-held-out folds ended at R&sup2; 0.904,
+  the same as the defaults (0.905). Judged by random folds, the same search picks a different winner, another effect of
+  the leak.</li>
+  <li><b>The algorithm isn't the bottleneck.</b> Gradient boosting, histogram boosting and linear regression score
+  0.895, 0.904 and 0.831 on the same unseen countries. The three tree models are effectively tied, so the
+  Random Forest stays (it also supports SHAP explanations).</li>
+  <li><b>A few countries are very hard.</b> ${top_country} is missed by ${top_country_miss} years. The worst 10% of
+  countries carry 22% of all error, and every model pulls the extremes toward the middle: too high for the lowest
+  life expectancies, too low for the highest.</li>
+  <li><b>The uncertainty band is slightly optimistic.</b> An 80% interval covers ${cover_random}% of random-split rows
+  but only ${cover_group}% on unseen countries.</li>
+</ul>
+
+<div class="pair">
+<figure>
+  <img src="images/importance.png" alt="Bar chart of permutation importance. HIV/AIDS deaths and adult mortality are the largest.">
+  <figcaption>What the model leans on most.</figcaption>
+</figure>
+<figure>
+  <img src="images/actual_vs_predicted.png" alt="Scatter plot of predicted against actual life expectancy; points hug the diagonal.">
+  <figcaption>Predictions on rows the model never trained on.</figcaption>
+</figure>
+</div>
+
+<figure>
+  <img src="images/hardest.png" alt="Bar chart of the ten countries with the largest average prediction error, led by Somalia at about 11 years.">
+  <figcaption>Somalia has no data for three inputs, so the model saw an average country. That explains Somalia, not the wider pattern.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/showdown.png" alt="Bar chart of R-squared on unseen countries: histogram boosting 0.904, random forest 0.902, gradient boosting 0.895, linear regression 0.831.">
+  <figcaption>Same folds, four algorithms. The data, not the algorithm, sets the ceiling.</figcaption>
+</figure>
+
+<h2>How it was done</h2>
+<ol class="steps">
+  <li><b>Cleaned</b> the WHO data: normalized headers, treated impossible zeros as missing, filled gaps by country over time,
+  winsorized outliers and dropped near-duplicate columns. The pipeline is driven by one config file.</li>
+  <li><b>Trained</b> a 200-tree Random Forest and scored it two ways: a random split and country-grouped cross-validation.</li>
+  <li><b>Diagnosed</b> it: residuals, permutation importance, partial dependence, interval calibration, tuning, a four-model
+  showdown and a hardest-countries investigation.</li>
+  <li><b>Built an app.</b> Streamlit pages for exploring the data, predicting with SHAP explanations, and reading the diagnostics,
+  deployed in Docker on my own server.</li>
+</ol>
+<p class="note"><b>Limits.</b> The data ends in 2015 and has about 16 years per country, so it describes the past, not today.
+Some countries have thin or filled-in data. Outlier clipping was applied before the train/test split, a small leak
+noted in the documentation. The model finds associations, not causes, and shouldn't be used to make decisions about people.</p>
+
+<h2 id="notebooks">The analysis, step by step</h2>
+<p class="note">The notebook shows the code and its results from the start of the project.</p>
+<ul class="nbs">
+${notebooks}
+</ul>
+
+<h2>More</h2>
+<p><a href="docs/APP_DOCUMENTATION.html">Full documentation</a>: methodology, how to read each diagnostic, and a what/why/how build log.</p>
+<p class="note">The code (Python, Streamlit app, training and tuning scripts) is on
+<a href="${github}">GitHub</a>. The interactive app is at <a href="${live_app}">${live_app}</a>.</p>
+
+<footer>
+  <a href="../">Scott Schirkofsky</a> · Page built ${built}
+</footer>
+
+</div>
+</body>
+</html>

@@ -255,3 +255,4 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 - **Deprecated option.** `use_container_width`, used throughout the app, is deprecated in current Streamlit and prints a warning on every run.
 
 **Still open:** test a shrinkage correction, source outside data on conflict and epidemics, a developed vs. developing fairness check, automated tests, and removing the full-dataset winsorizing leak.
+| 13. Portfolio page | Added a generated static project page at schirko.com/scott/life-expectancy/ and a card on the portfolio | An employer-facing front door that explains the results in plain language and links to the live app, code and notebook, without a public github.io site | `site_build/build_site.py` + `site_template.html` (matplotlib charts, nbconvert notebook export, mistune docs); writes to `SITE_DIR` in `.env` (the Schirko `scott/` folder, served by Coolify); noindex on every page; card added to Schirko `scott/index.html` |

@@ -4,3 +4,7 @@ __pycache__/
 .DS_Store
 .streamlit/secrets.toml
 notes/
+
+# Project page build (site_build/)
+.env
+site/

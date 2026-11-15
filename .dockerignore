@@ -10,3 +10,10 @@ __pycache__
 notes
 test_app
 .streamlit/secrets.toml
+
+# Project-page generator and its notebook: not needed in the app container
+site_build
+notebooks
+site
+.env
+.env.example
