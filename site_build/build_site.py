@@ -269,6 +269,8 @@ def main() -> None:
     leak = json.loads((ROOT / "model" / "leak_check.json").read_text(encoding="utf-8"))
     fair = json.loads((ROOT / "model" / "fairness_check.json").read_text(encoding="utf-8"))
     fc = fair["corrected_labels"]
+    cal = json.loads((ROOT / "model" / "interval_calibration.json").read_text(encoding="utf-8"))
+    cal_c = cal["evaluation"]["C_per_group"]
     g = diag["group_cv"]
     sd = dict(showdown(diag))
     conc = g["hard_cases"]["concentration"]
@@ -308,6 +310,9 @@ def main() -> None:
         "fair_ci_hi": f"{fc['mae_gap_95ci'][1]:.1f}",
         "fair_cov_dev": f"{fc['groups']['Developed']['interval_coverage_pct']:.0f}",
         "fair_cov_dvg": f"{fc['groups']['Developing']['interval_coverage_pct']:.0f}",
+        "cal_factor_dvg": f"{(cal['factors_fitted_on_all']['Developing'] - 1) * 100:.0f}",
+        "cal_cov_dev": f"{cal_c['Developed']['coverage_pct']:.0f}",
+        "cal_cov_dvg": f"{cal_c['Developing']['coverage_pct']:.1f}",
         "github": GITHUB,
         "notebooks": export_notebooks(),
         "backbar_css": BACKBAR_CSS,
