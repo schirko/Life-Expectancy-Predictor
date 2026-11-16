@@ -249,9 +249,9 @@ Factors fitted on all countries: developed 1.00 (no change), developing 1.13, on
 
 | Version | Avg miss (yrs) | R² | Calibration slope | Lowest 10% of true values | Highest 10% of true values | Lowest 10% of predictions | Highest 10% of predictions |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A. No correction | 2.139 | 0.905 | 0.99 | -2.52 | +0.63 | -0.16 | -0.50 |
-| B. Linear | 2.143 | 0.904 | 1.00 | -2.68 | +0.77 | -0.35 | -0.35 |
-| C. Isotonic | 2.207 | 0.899 | 1.00 | -2.75 | +1.03 | -0.33 | -0.06 |
+| A. No correction | 2.139 | 0.905 | 0.99 | -2.52 | +0.62 | -0.16 | -0.50 |
+| B. Linear | 2.143 | 0.904 | 1.00 | -2.68 | +0.76 | -0.35 | -0.35 |
+| C. Isotonic | 2.207 | 0.899 | 1.00 | -2.75 | +1.02 | -0.33 | -0.05 |
 
 **How to read it.** The last four columns are average errors in years (actual minus predicted); negative means the model predicted too high. A calibration slope of 1 means that, on average, a prediction of 60 years really does correspond to 60 years.
 
