@@ -1,5 +1,7 @@
 # Life Expectancy Predictor
 
+[![tests](https://github.com/schirko/Life-Expectancy-Predictor/actions/workflows/tests.yml/badge.svg)](https://github.com/schirko/Life-Expectancy-Predictor/actions/workflows/tests.yml)
+
 A data-science project that predicts a country's life expectancy from WHO
 health and economic indicators (2000–2015) with a Random Forest, and tests
 honestly how well it does on countries it has never seen.
@@ -28,6 +30,7 @@ Life-Expectancy-Predictor/
 │   ├── interval_calibration.py # Uncertainty band sized per group (milestone 19)
 │   └── shrinkage_check.py      # Shrinkage-correction test (milestone 20)
 ├── site_build/                 # Generates the static project page
+├── tests/                      # 27 automated tests (python -m pytest)
 ├── notebooks/                  # The original practicum notebook
 ├── data/
 │   ├── Life_Expectancy_WHO_Data.csv
@@ -65,6 +68,15 @@ saves `model/rf_model.joblib`, `model/metadata.json` and
 `model/diagnostics.json` (residuals, permutation importance, partial
 dependence, interval calibration, unseen-country errors, hardest countries and
 a four-model comparison).
+
+## Tests
+
+```
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+27 tests in `tests/` check the config, the cleaning (including the zero-means-missing rules), the leak-free outlier clipping, that no country is ever on both sides of the honest test, that the README, findings and documentation quote the same numbers as the saved results, and that the page build stays inside its own folder. GitHub Actions runs them on every push (badge above).
 
 ## Project page
 

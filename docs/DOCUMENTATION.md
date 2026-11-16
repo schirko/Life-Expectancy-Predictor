@@ -32,6 +32,7 @@ The pipeline is config-driven: dataset-specific knowledge (column names, cleanin
 | `analysis/interval_calibration.py` | Sizes the 80% uncertainty band per group (milestone 19) |
 | `analysis/shrinkage_check.py` | Tests whether a recalibration step can undo the pull toward the middle (milestone 20) |
 | `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
+| `tests/` | 27 automated tests (`python -m pytest`), also run by GitHub Actions on every push (milestone 22) |
 | `notebooks/` | The original practicum notebook, exported to the page |
 | `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
 
@@ -65,7 +66,12 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    python -m analysis.interval_calibration
    python -m analysis.shrinkage_check
    ```
-5. Build the project page (written to `SITE_DIR` from `.env`, the Schirko portfolio folder; without it, to a git-ignored `site/` folder):
+5. Run the tests (`pip install -r requirements-dev.txt` once):
+
+   ```
+   python -m pytest
+   ```
+6. Build the project page (written to `SITE_DIR` from `.env`, the Schirko portfolio folder; without it, to a git-ignored `site/` folder):
 
    ```
    python -m site_build.build_site
@@ -310,6 +316,27 @@ To point the project at a different, similarly-shaped WHO-style CSV:
 4. If the config doesn't match the CSV's actual columns, training fails immediately with a specific list of what's missing, rather than a cryptic error partway through cleaning
 5. Rebuild the project page with `python -m site_build.build_site`
 
+## Automated Tests (Milestone 22)
+
+**What we are looking for.** A way to prove, every time the code changes, that the pipeline still does what this document says: placeholder values become gaps, the target is never clipped, outlier limits are learned from training rows only, the honest test never puts a country on both sides, the build only writes inside this project's folder, and the published numbers match the saved results.
+
+**How it was done.** 27 tests with `pytest`, in `tests/`, run with `python -m pytest` (about 10 seconds). They use the real WHO data and the saved results in `model/`. GitHub Actions (`.github/workflows/tests.yml`) runs them automatically on every push, so the repository shows a pass/fail badge.
+
+| Test file | What it checks | Why it matters |
+| --- | --- | --- |
+| `test_config.py` | The config matches the CSV; a missing column is reported; 13 predictors, target not among them | The config-driven design fails fast instead of training on the wrong columns |
+| `test_cleaning.py` | Zeros meaning "not reported" become gaps (including health expenditure, milestone 21); BMI outside 10-50 becomes a gap; no gaps remain; 2,928 rows and 183 countries; life expectancy keeps its true minimum and maximum | Guards the data fixes from milestones 16 and 21 |
+| `test_leak_free_clipping.py` | The new clipper matches the old method exactly on all rows; limits come only from training rows; extreme test values are clipped to the training limits; clipping is the first step of the model pipeline | Guards the leak fix from milestone 16 |
+| `test_evaluation.py` | No country is ever in both the training and test folds; a small 30-tree model still scores R² above 0.85 on unseen countries | Guards the honest test that every finding relies on |
+| `test_results_and_docs.py` | Every analysis has a results file; scores are in the expected range; the README, Findings and this document quote the same numbers as the saved results | Catches documentation that has fallen behind a re-run |
+| `test_site_build.py` | The build refuses to write the portfolio root; it produces all four pages with the shared back bar and noindex tag, every placeholder filled, all six charts, and no Streamlit | Guards the ownership rule and the published page |
+
+**How to read it.** Each test is a yes/no check. "27 passed" means every check held. A failure names the file and the exact check, for example "Pct_Expenditure still has zeros".
+
+**What it means.** The tests were checked against a deliberate mistake: with health expenditure removed from the zero-means-missing rule, the two cleaning tests that guard it failed straight away. So the suite catches real regressions, not just runs. The documentation-consistency tests mean a re-run that shifts a headline number will fail until the README, Findings and this document are updated.
+
+**What's next and why.** If a new analysis is added, add its results file to `test_results_and_docs.py` and one check that its documented numbers match.
+
 ## Publishing Rules (Ownership)
 
 **Standing rule (2026-11-16).** This project writes only inside its own folder in the Schirko portfolio, `scott/life-expectancy/` (served at schirko.com/scott/life-expectancy/), plus its card screenshot in `scott/images/screenshots/`, which is added by hand. The portfolio project owns `scott/index.html` and `scott/styles.css`, and this project never writes them. If the Life Expectancy card on the portfolio needs changing, the new text is handed to the portfolio project, which makes the change.
@@ -354,10 +381,11 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 19. Uncertainty band sized per group | Stretched the 80% tree-spread band by a separate factor for developed and developing countries, chosen by cross-fitting on held-out countries | The fairness check showed the band under-covered developing countries (76.5%); an "80%" band should mean 80% for every group | `analysis/interval_calibration.py` saves `model/interval_calibration.json`. Result: developed 80.4%, developing 79.5% (band about 10% wider), versus 82.1% / 78.9% with one shared factor |
 | 20. Shrinkage-correction test | Measured the pull toward the middle by true value and by prediction, and tested linear and isotonic recalibration with nested country cross-validation | Before "fixing" a bias, check it is one; an interviewer will ask whether the over-prediction of low life expectancies can be corrected | `analysis/shrinkage_check.py` saves `model/shrinkage_check.json`. Result: calibration slope 0.99, errors by prediction within about 0.5 years, so the pattern is regression to the mean; corrections raised the average miss (2.131 → 2.134 linear, 2.208 isotonic); no model change |
 | 21. Health-expenditure zeros fixed | `Pct_Expenditure` added to the zero-means-missing rule; every script re-run and every number in the docs, findings and project page updated | 606 rows (every country in 2015, 26 countries in every year) reported 0% health spending, which is "not reported", not zero; the model should not learn from values known to be wrong | One line in `config/who_life_expectancy.yaml` (`zero_as_null`). Result: unseen-country R² 0.9015 → 0.9010, average miss 2.131 → 2.139 years, fairness gap 0.40 → 0.41; no conclusion changed |
+| 22. Automated tests | 27 `pytest` tests covering the config, cleaning, leak-free clipping, the honest test, results-vs-docs consistency and the page build; GitHub Actions runs them on every push | Shows the pipeline still does what the documentation says after any change, and lets an employer see it pass | `tests/`, `pytest.ini`, `requirements-dev.txt`, `.github/workflows/tests.yml`. Checked against a deliberate mistake (health-expenditure rule removed): the guarding tests failed as they should. 27 passed in about 10 seconds |
 
 **Found while building milestone 13:**
 
 - **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. The fairness check (milestone 18) relabels them for its comparison; the source data is unchanged.
 - **Health expenditure stored as zero.** Fixed in milestone 21: `Pct_Expenditure` was exactly 0 in 606 of 2,928 rows (every country in 2015, and 26 countries in every year). A 0 in that column is now treated as missing; see "Health-Expenditure Zeros Fixed".
 
-**Still open:** source outside data on conflict and epidemics, automated tests, and the small fallback-median leak (countries with no data at all for an input).
+**Still open:** source outside data on conflict and epidemics, an interview walkthrough script, and the small fallback-median leak (countries with no data at all for an input).

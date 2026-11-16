@@ -1,0 +1,3 @@
+# For running the tests and building the project page (not needed to train the model).
+-r site_build/requirements-site.txt
+pytest>=8.0
