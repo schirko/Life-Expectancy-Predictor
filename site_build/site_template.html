@@ -115,6 +115,9 @@ ${back}
   are compared, and the uncertainty band covers ${fair_cov_dev}% of developed rows but only ${fair_cov_dvg}% of developing
   ones. Neither group is over- or under-predicted on average. Status is not a model input; six advanced economies
   the source data labels "Developing" were relabelled first.</li>
+  <li><b>So the uncertainty band is now sized per group.</b> Widening developing countries' band by about ${cal_factor_dvg}%
+  brings it to ${cal_cov_dvg}% coverage, with developed countries at ${cal_cov_dev}%, both close to the 80% the band
+  promises. The widening was tested on countries that played no part in choosing it.</li>
   <li><b>A data leak was found and fixed, and it barely mattered.</b> Outliers had been capped using all rows before the
   train/test split, and life expectancy itself was capped (${leak_rows} low values raised). Capping is now learned from the
   training rows only. Unseen-country R&sup2; went from ${leak_old_group} to ${leak_new_group}, so the findings hold.</li>

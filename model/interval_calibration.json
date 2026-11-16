@@ -1,0 +1,53 @@
+{
+  "method": "Cross-fitted stretch of the 10th-90th percentile tree band, GroupKFold(5) by Country; groups use corrected Status labels",
+  "target_coverage_pct": 80.0,
+  "evaluation": {
+    "A_raw": {
+      "All": {
+        "coverage_pct": 77.3,
+        "width_years": 6.68
+      },
+      "Developed": {
+        "coverage_pct": 80.1,
+        "width_years": 5.62
+      },
+      "Developing": {
+        "coverage_pct": 76.5,
+        "width_years": 6.96
+      }
+    },
+    "B_one_factor": {
+      "All": {
+        "coverage_pct": 79.6,
+        "width_years": 7.26
+      },
+      "Developed": {
+        "coverage_pct": 82.1,
+        "width_years": 6.16
+      },
+      "Developing": {
+        "coverage_pct": 78.9,
+        "width_years": 7.55
+      }
+    },
+    "C_per_group": {
+      "All": {
+        "coverage_pct": 79.7,
+        "width_years": 7.29
+      },
+      "Developed": {
+        "coverage_pct": 80.4,
+        "width_years": 5.88
+      },
+      "Developing": {
+        "coverage_pct": 79.5,
+        "width_years": 7.66
+      }
+    }
+  },
+  "factors_fitted_on_all": {
+    "all": 1.084,
+    "Developed": 1.0,
+    "Developing": 1.103
+  }
+}

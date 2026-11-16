@@ -27,6 +27,7 @@ The pipeline is config-driven: dataset-specific knowledge (column names, cleanin
 | `tune_hyperparameters.py` | Optional grid search with country-held-out folds |
 | `analysis/leak_check.py` | Optional: measures how much the old all-rows outlier clipping changed the scores (milestone 16) |
 | `analysis/fairness_check.py` | Developed vs. developing comparison on unseen countries (milestone 18) |
+| `analysis/interval_calibration.py` | Sizes the 80% uncertainty band per group (milestone 19) |
 | `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
 | `notebooks/` | The original practicum notebook, exported to the page |
 | `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
@@ -58,6 +59,7 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    python tune_hyperparameters.py
    python -m analysis.leak_check
    python -m analysis.fairness_check
+   python -m analysis.interval_calibration
    ```
 5. Build the project page (written to `SITE_DIR` from `.env`, the Schirko portfolio folder; without it, to a git-ignored `site/` folder):
 
@@ -208,7 +210,32 @@ Inside the same life-expectancy band (corrected labels): 70-75 years, developed 
 - **The labels mattered.** Counting the six advanced economies as developed shrinks the gap by about a quarter (0.53 → 0.40), because several of them are harder to predict than a typical developed country (the Republic of Korea is the 6th-hardest of 183 countries).
 - **R² within a group is misleading here.** Developing countries score higher (0.88 vs 0.59) only because their life expectancies spread far wider (standard deviation 8.7 vs 3.9 years); the average miss is the fair comparison.
 
-**What's next and why.** The 13 inputs describe developed countries well and developing countries less well: within the same life expectancy, the developing countries vary in ways the inputs do not capture (conflict, epidemics, how reliable the reporting is). The fix is better inputs, not a different model. A widened interval for developing countries would make the uncertainty honest in the meantime. The six-country relabelling is used only in this analysis; the source data is unchanged.
+**What's next and why.** The 13 inputs describe developed countries well and developing countries less well: within the same life expectancy, the developing countries vary in ways the inputs do not capture (conflict, epidemics, how reliable the reporting is). The fix is better inputs, not a different model. A wider interval for developing countries would make the uncertainty honest in the meantime; milestone 19 does this. The six-country relabelling is used only in this analysis; the source data is unchanged.
+
+### Uncertainty Band Sized Per Group (Milestone 19)
+
+**What we are looking for.** The fairness check found the 80% band holds the true value 80.1% of the time for developed countries but only 76.5% for developing ones. A band that says "80%" should mean it for both groups. Can it be re-sized so it does, without simply making it wider for everyone?
+
+**How it was done.** `analysis/interval_calibration.py` takes the raw band (10th to 90th percentile of the forest's 200 trees, predicted for countries the model never saw) and stretches it around the prediction by a factor *k*. Three versions are compared: (A) the raw band; (B) one factor for everyone, chosen so overall coverage is 80%; (C) one factor per group, each chosen so that group's coverage is 80%. The factors are cross-fitted: for each of the 5 country folds, *k* is chosen on the other four folds and applied to the held-out one, so no country helps size its own band. Groups use the corrected Status labels from milestone 18.
+
+| Version | Developed: covers / width | Developing: covers / width | All: covers / width |
+| --- | --- | --- | --- |
+| A. Raw band | 80.1% / 5.62 yrs | 76.5% / 6.96 yrs | 77.3% / 6.68 yrs |
+| B. One factor for everyone | 82.1% / 6.16 yrs | 78.9% / 7.55 yrs | 79.6% / 7.26 yrs |
+| C. One factor per group | 80.4% / 5.88 yrs | 79.5% / 7.66 yrs | 79.7% / 7.29 yrs |
+
+Factors fitted on all countries: developed 1.00 (no change), developing 1.10, one factor for everyone 1.08.
+
+**How to read it.** "Covers" is how often the band held the true value on countries it was not tuned on; 80% is the target. "Width" is the average distance from the bottom to the top of the band, in years. A narrower band at the same coverage is better.
+
+**What it means.**
+
+- **One factor for everyone is the wrong fix.** It brings the overall figure to 80% but over-covers developed countries (82.1%, a wider band than they need) and still under-covers developing ones (78.9%).
+- **Per-group factors fix both.** Developed countries keep essentially their raw band (80.4%), and developing countries get a band about 10% wider (7.66 vs 6.96 years) that now holds the truth 79.5% of the time.
+- **The cost is honest, not large.** The overall band grows from 6.68 to 7.29 years, and that extra width goes to the group that needed it.
+- **It was tested fairly.** Cross-fitting means each country's coverage was measured with a factor chosen without it.
+
+**What's next and why.** The factors are saved in `model/interval_calibration.json` for any future use of the interval. Widening the band is a patch, not a cure: it admits the model knows less about developing countries. The cure is inputs that capture what varies among them (conflict, epidemics, reporting quality).
 
 ### Data Quality: Implicit Missingness
 
@@ -265,6 +292,7 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 16. Outlier-clipping leak removed | Winsorizing limits are learned from the training rows inside every split, and life expectancy is no longer clipped; the effect was measured four ways | Clipping on all rows before splitting let test rows set the caps, and clipping the target scored the model against altered answers; both had to be ruled out before trusting the scores | `FoldWinsorizer` in `data_prep.py`, used as the first step of a `Pipeline` in `train_model.py` and `tune_hyperparameters.py`; `analysis/leak_check.py` saves `model/leak_check.json`, shown on Diagnostics → Data Quality. Result: unseen-country R² 0.902 → 0.901, random split 0.962 → 0.960; findings unchanged |
 | 17. Streamlit removed | Deleted the Streamlit app (`Home.py`, `pages/`), its Docker and dev-container setup, the `streamlit`, `plotly` and `shap` packages, and the UI-only config settings | The project is presented as a static page under schirko.com/scott; an app nobody can reach is code to maintain for nothing | `git rm` of the app files; `requirements.txt` trimmed; `input_type`/`show_in_ui` removed from the config, `config_loader.py` and the model metadata; `feature_ranges` and the all-rows clipped copy removed from `train_model.py`, so `data/clean_data.csv` now holds the unclipped cleaned data; docs rewritten around the project page |
 | 18. Fairness check | Compared developed and developing countries on unseen-country predictions: average miss, bias, like-for-like by life-expectancy band, interval coverage, and a country bootstrap; with source and corrected Status labels | A model that is worse for one group of countries should say so; a portfolio project should test it, not assume it | `analysis/fairness_check.py` (GroupKFold(5), leak-free clipping) saves `model/fairness_check.json`; six advanced economies labelled "Developing" relabelled for the comparison only. Result: developing countries missed by 0.40 years more (95% range 0.09-0.72), gap holds within matching life-expectancy bands, no group bias, interval covers 76.5% vs 80.1% |
+| 19. Uncertainty band sized per group | Stretched the 80% tree-spread band by a separate factor for developed and developing countries, chosen by cross-fitting on held-out countries | The fairness check showed the band under-covered developing countries (76.5%); an "80%" band should mean 80% for every group | `analysis/interval_calibration.py` saves `model/interval_calibration.json`. Result: developed 80.4%, developing 79.5% (band about 10% wider), versus 82.1% / 78.9% with one shared factor |
 
 **Found while building milestone 13 (not yet fixed):**
 
