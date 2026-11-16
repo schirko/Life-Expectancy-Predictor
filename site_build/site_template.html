@@ -58,6 +58,11 @@ figcaption { color: #4a524d; font-size: 14px; padding: 8px 6px 2px; }
 .nbs .num { color: var(--accent); min-width: 24px; }
 .nbs .blurb { display: block; color: var(--muted); font-size: 15px; margin-left: 36px; }
 .note { color: var(--muted); font-size: 15.5px; }
+.plain { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 22px 10px; margin: 28px 0; }
+.plain h2 { margin-top: 18px; }
+.terms { width: 100%; border-collapse: collapse; font-size: 15.5px; }
+.terms th, .terms td { text-align: left; vertical-align: top; padding: 9px 10px; border-top: 1px solid var(--line); }
+.terms th { width: 30%; font-weight: 600; }
 footer { margin: 64px 0 40px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14.5px; }
 @media (max-width: 560px) { body { font-size: 16px; } .stat .v { font-size: 32px; } .nbs .blurb { margin-left: 0; } }
 </style>
@@ -91,6 +96,21 @@ ${back}
   <figcaption>The same model scored two ways. Holding out whole countries is the fair test of predicting somewhere new.</figcaption>
 </figure>
 
+<section class="plain" aria-labelledby="plain-h">
+<h2 id="plain-h">The project in plain English</h2>
+<p><b>The question.</b> Can you estimate how long people in a country live, on average, from a handful of health and
+economic statistics, such as how many adults die young, how common HIV/AIDS is, and how much schooling people get?</p>
+<p><b>The honest answer.</b> For a country the model has never seen, its estimate is typically within about
+<b>${miss_group_1} years</b> of the real figure. The first test suggested about ${miss_random_1} years, but that test let the model peek at other
+years of the same country, a bit like grading a student on questions they have already seen.</p>
+<p><b>What we learned.</b> Three statistics do most of the work: HIV/AIDS deaths, adult deaths, and an index of income and
+education. A fancier model, fine-tuning, or adjusting the answers afterwards does not help; the model is limited by what
+the data contains, not by the method. It struggles most with a few countries and is somewhat less accurate for
+developing countries. Every result was checked on countries the model never saw.</p>
+<p><b>What would make it better.</b> Better information, not a better algorithm: data on conflict, epidemics and how
+reliable each country's reporting is.</p>
+</section>
+
 <h2 id="findings">Key findings</h2>
 <ul class="findings">
   <li><b>The headline score was too good.</b> A random train/test split gives R&sup2; ${r2_random}, because other years of the same
@@ -104,6 +124,11 @@ ${back}
   <li><b>The algorithm isn't the bottleneck.</b> Gradient boosting, histogram boosting and linear regression score
   ${sd_gb}, ${sd_hgb} and ${sd_lin} on the same unseen countries. The three tree models are effectively tied, so the
   Random Forest stays.</li>
+  <li><b>The "pull toward the middle" can't be corrected away, because it isn't a bias.</b> The lowest life
+  expectancies are over-predicted by ${shr_low} years on average, but grouped by what the model <i>predicted</i>, the errors are
+  close to zero (calibration slope ${shr_slope}, where 1 is perfect). That is regression to the mean, which any imperfect
+  model shows. Two correction steps, tested on unseen countries, made things slightly worse (average miss ${shr_mae_raw} →
+  ${shr_mae_lin} and ${shr_mae_iso} years).</li>
   <li><b>A few countries are very hard.</b> ${top_country} is missed by ${top_country_miss} years. The worst 10% of
   countries carry ${top10_share}% of all error, and every model pulls the extremes toward the middle: too high for the lowest
   life expectancies, too low for the highest.</li>
@@ -140,6 +165,11 @@ ${back}
 </figure>
 
 <figure>
+  <img src="images/shrinkage.png" alt="Line chart of average error by tenth of the rows. Grouped by true life expectancy, the lowest tenth is over-predicted by about 2.5 years; grouped by the model's prediction, every tenth is within about half a year of zero.">
+  <figcaption>Orange: rows grouped by their true value show the pull. Green: grouped by the prediction, it disappears.</figcaption>
+</figure>
+
+<figure>
   <img src="images/fairness.png" alt="Bar chart of average miss in years for developed and developing countries, overall and within life-expectancy bands 70 to 75 and 75 to 80; developing countries are missed by more in every group.">
   <figcaption>Comparing countries with similar life expectancy rules out "developing countries are just more extreme".</figcaption>
 </figure>
@@ -148,6 +178,17 @@ ${back}
   <img src="images/showdown.png" alt="Bar chart of R-squared on unseen countries: histogram boosting ${sd_hgb}, random forest ${sd_rf}, gradient boosting ${sd_gb}, linear regression ${sd_lin}.">
   <figcaption>Same folds, four algorithms. The data, not the algorithm, sets the ceiling.</figcaption>
 </figure>
+
+<h2>Words used on this page</h2>
+<table class="terms">
+  <tr><th>Unseen country</th><td>A country left out of the model's training and used only to test it. This is the fair test.</td></tr>
+  <tr><th>Average miss</th><td>How far off the estimate is, on average, in years. Smaller is better.</td></tr>
+  <tr><th>R&sup2;</th><td>A score from 0 to 1 for how much of the difference between countries the model explains. 0.90 means about 90%.</td></tr>
+  <tr><th>Random Forest</th><td>The kind of model used: 200 simple decision trees whose estimates are averaged.</td></tr>
+  <tr><th>Uncertainty band</th><td>A range around each estimate meant to contain the real figure 80% of the time.</td></tr>
+  <tr><th>Regression to the mean</th><td>Estimates of extreme cases land closer to average. Any imperfect estimate does this; it is not a bias.</td></tr>
+  <tr><th>Data leak</th><td>Test information sneaking into training, which makes results look better than they are.</td></tr>
+</table>
 
 <h2>How it was done</h2>
 <ol class="steps">
@@ -169,6 +210,7 @@ ${notebooks}
 </ul>
 
 <h2>More</h2>
+<p><a href="docs/FINDINGS.html">All findings</a>: every conclusion in one place, with the key numbers and what each one means.</p>
 <p><a href="docs/DOCUMENTATION.html">Full documentation</a>: methodology, how to read each diagnostic, and a what/why/how build log.</p>
 
 <footer>

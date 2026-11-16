@@ -9,7 +9,8 @@ honestly how well it does on countries it has never seen.
 
 The second number is the one to trust: a random split puts a country's other
 years in training. The full write-up, with charts, is at
-<https://schirko.com/scott/life-expectancy/>.
+<https://schirko.com/scott/life-expectancy/>. Every conclusion is summarised in
+[`docs/FINDINGS.md`](docs/FINDINGS.md).
 
 ## Project structure
 
@@ -24,14 +25,17 @@ Life-Expectancy-Predictor/
 ├── analysis/
 │   ├── leak_check.py           # Optional: measures the old outlier-clipping leak
 │   ├── fairness_check.py       # Developed vs developing comparison (milestone 18)
-│   └── interval_calibration.py # Uncertainty band sized per group (milestone 19)
+│   ├── interval_calibration.py # Uncertainty band sized per group (milestone 19)
+│   └── shrinkage_check.py      # Shrinkage-correction test (milestone 20)
 ├── site_build/                 # Generates the static project page
 ├── notebooks/                  # The original practicum notebook
 ├── data/
 │   ├── Life_Expectancy_WHO_Data.csv
 │   └── clean_data.csv          # Written by train_model.py
 ├── model/                      # Written by the scripts above
-└── docs/DOCUMENTATION.md       # Methodology, findings and build log
+└── docs/
+    ├── FINDINGS.md             # Every conclusion in one place
+    └── DOCUMENTATION.md        # Methodology, findings and build log
 ```
 
 ## Setup
@@ -51,6 +55,7 @@ python tune_hyperparameters.py        # optional
 python -m analysis.leak_check         # optional
 python -m analysis.fairness_check     # developed vs developing comparison
 python -m analysis.interval_calibration   # size the uncertainty band per group
+python -m analysis.shrinkage_check    # can recalibration undo the pull toward the middle?
 python -m site_build.build_site       # build the project page
 ```
 

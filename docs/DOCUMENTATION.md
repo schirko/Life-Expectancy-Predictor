@@ -1,5 +1,7 @@
 # Life Expectancy Predictor — Project Documentation
 
+> For the conclusions only, see [FINDINGS.md](FINDINGS.md).
+
 A data-science project that predicts a country's life expectancy from WHO health and economic indicators (2000–2015) with a Random Forest, and tests honestly how well it does on countries it has never seen. The results are published as a static page at [schirko.com/scott/life-expectancy](https://schirko.com/scott/life-expectancy/), generated from the saved results by `site_build/build_site.py`.
 
 > **2026-11-15:** the project no longer uses Streamlit. The interactive app (Dashboard, Predict and Diagnostics pages, plus its Docker and dev-container setup) was removed in milestone 17; see "Decision: Streamlit Removed" and the build log. The analysis, model and diagnostics are unchanged.
@@ -28,6 +30,7 @@ The pipeline is config-driven: dataset-specific knowledge (column names, cleanin
 | `analysis/leak_check.py` | Optional: measures how much the old all-rows outlier clipping changed the scores (milestone 16) |
 | `analysis/fairness_check.py` | Developed vs. developing comparison on unseen countries (milestone 18) |
 | `analysis/interval_calibration.py` | Sizes the 80% uncertainty band per group (milestone 19) |
+| `analysis/shrinkage_check.py` | Tests whether a recalibration step can undo the pull toward the middle (milestone 20) |
 | `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
 | `notebooks/` | The original practicum notebook, exported to the page |
 | `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
@@ -60,6 +63,7 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    python -m analysis.leak_check
    python -m analysis.fairness_check
    python -m analysis.interval_calibration
+   python -m analysis.shrinkage_check
    ```
 5. Build the project page (written to `SITE_DIR` from `.env`, the Schirko portfolio folder; without it, to a git-ignored `site/` folder):
 
@@ -146,7 +150,7 @@ The question: how well does the model predict a country it has never seen? Rando
 
 **Caveat (updated in milestone 16):** winsorizing limits used to be computed on the full dataset before splitting. That leak is now removed and measured (see "Outlier Clipping Leak Check"). The all-country fallback median, used only when a country has no data at all for an input, still includes held-out countries.
 
-**Why are the hardest countries hard?** Three explanations were tested against the out-of-fold predictions. (1) *Concentration:* the worst 10% of countries (18) carry 22% of total error; removing them lifts unseen-country R² from 0.905 to 0.923. (2) *Missing data:* Somalia, off by 11.4 years (more than double any other country), has no data for three inputs (Ttl_Expend, Income_Comp_Of_Resources, Schooling), which were filled with the all-country median, so the model saw an average country. But across all countries the link between empty inputs and error is -0.01, so missing data explains Somalia, not the pattern. (3) *Shrinkage toward the middle:* in the lowest life-expectancy band (36-55 years) the model predicts 2.5 years too high on average; in the highest band (80-89) it predicts 0.6 years too low, and the Model Showdown below shows gradient boosting and even linear regression do the same, so this is mostly about the data: when inputs only partly determine the outcome, every model regresses toward the average. The input whose country average best tracks error is HIV_AIDS (rank correlation +0.43). Countries such as Republic of Korea, Cuba and Guatemala are under-predicted: they live longer than their indicators suggest.
+**Why are the hardest countries hard?** Three explanations were tested against the out-of-fold predictions. (1) *Concentration:* the worst 10% of countries (18) carry 22% of total error; removing them lifts unseen-country R² from 0.905 to 0.923. (2) *Missing data:* Somalia, off by 11.4 years (more than double any other country), has no data for three inputs (Ttl_Expend, Income_Comp_Of_Resources, Schooling), which were filled with the all-country median, so the model saw an average country. But across all countries the link between empty inputs and error is -0.01, so missing data explains Somalia, not the pattern. (3) *Shrinkage toward the middle:* in the lowest life-expectancy band (36-55 years) the model predicts 2.5 years too high on average; in the highest band (80-89) it predicts 0.6 years too low, and the Model Showdown below shows gradient boosting and even linear regression do the same, so this is mostly about the data: when inputs only partly determine the outcome, every model regresses toward the average (milestone 20 confirms this is regression to the mean and cannot be corrected after the fact). The input whose country average best tracks error is HIV_AIDS (rank correlation +0.43). Countries such as Republic of Korea, Cuba and Guatemala are under-predicted: they live longer than their indicators suggest.
 
 ### Model Showdown (Four Algorithms, Same Unseen Countries)
 
@@ -237,6 +241,29 @@ Factors fitted on all countries: developed 1.00 (no change), developing 1.10, on
 
 **What's next and why.** The factors are saved in `model/interval_calibration.json` for any future use of the interval. Widening the band is a patch, not a cure: it admits the model knows less about developing countries. The cure is inputs that capture what varies among them (conflict, epidemics, reporting quality).
 
+### Shrinkage-Correction Test (Milestone 20)
+
+**What we are looking for.** On countries it has never seen, the model over-predicts the lowest life expectancies (by about 2.5 years in the lowest tenth) and under-predicts the highest, and every model in the showdown does the same. Can a correction step applied after the model ("recalibration") undo this pull toward the middle?
+
+**How it was done.** `analysis/shrinkage_check.py` measures the pull two ways. *By true value*: rows are grouped by their actual life expectancy. *By prediction* (calibration): rows are grouped by what the model predicted, and actual is regressed on predicted; a slope above 1 would mean the predictions are squeezed and stretching them would help. Two corrections were then tested against no correction: **linear** (actual ≈ a + b × prediction) and **isotonic** (a free-form increasing curve). Both were learned honestly with nested cross-validation: for each of the 5 country folds, the correction was fitted on predictions for the other training countries (an inner country split), then applied to held-out countries the model and the correction never saw.
+
+| Version | Avg miss (yrs) | R² | Calibration slope | Lowest 10% of true values | Highest 10% of true values | Lowest 10% of predictions | Highest 10% of predictions |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A. No correction | 2.131 | 0.905 | 0.99 | -2.53 | +0.60 | -0.17 | -0.52 |
+| B. Linear | 2.134 | 0.905 | 1.00 | -2.68 | +0.75 | -0.36 | -0.38 |
+| C. Isotonic | 2.208 | 0.898 | 1.00 | -2.75 | +1.05 | -0.37 | -0.03 |
+
+**How to read it.** The last four columns are average errors in years (actual minus predicted); negative means the model predicted too high. A calibration slope of 1 means that, on average, a prediction of 60 years really does correspond to 60 years.
+
+**What it means.**
+
+- **The predictions are not squeezed.** The calibration slope is 0.99, and grouped by prediction every tenth is within about half a year of zero. So when the model says 50, the truth averages about 50.
+- **The pull is regression to the mean.** Grouped by true value, the lowest tenth looks over-predicted by 2.5 years. That happens with any imperfect model: the rows with the most extreme true values are disproportionately the ones the inputs under-explain, so their predictions sit closer to the middle. It is a property of the errors, not a bias in the model.
+- **Correcting it makes things worse.** Linear recalibration barely changes anything (average miss 2.131 → 2.134); isotonic recalibration is worse (2.208), and both make the true-value pattern slightly larger, not smaller. Stretching predictions that are already calibrated adds error.
+- **This revises how the pattern should be described.** Earlier sections (Hardest Countries, Model Showdown) called it "shrinkage toward the middle"; it is better described as regression to the mean, and it cannot be fixed after the fact. Only better inputs, which explain more of the extreme cases, would shrink it.
+
+**What's next and why.** No change to the model. The remaining route to better predictions for the most extreme countries is the same one the fairness check pointed to: inputs that capture conflict, epidemics and reporting quality.
+
 ### Data Quality: Implicit Missingness
 
 `.isnull()` only catches explicit `NaN` values, missing real-world missingness encoded as a placeholder (e.g. a literal `0` standing in for "not reported"). Left untreated, a model trains on that placeholder as if it were a true, verified value. **Finding:** several columns show 0% missing by a naive `.isnull()` check but a substantial rate once implicit nulls are correctly identified — BMI (49.4%), Infant Deaths (28.6%), and Under-Five Deaths (26.5%) — all of which drop to 0% only after the pipeline's interpolation/imputation step. The true data-quality picture was invisible until this step ran.
@@ -258,6 +285,14 @@ To point the project at a different, similarly-shaped WHO-style CSV:
 3. Run `python train_model.py config/your_new_config.yaml`
 4. If the config doesn't match the CSV's actual columns, training fails immediately with a specific list of what's missing, rather than a cryptic error partway through cleaning
 5. Rebuild the project page with `python -m site_build.build_site`
+
+## Publishing Rules (Ownership)
+
+**Standing rule (2026-11-16).** This project writes only inside its own folder in the Schirko portfolio, `scott/life-expectancy/` (served at schirko.com/scott/life-expectancy/), plus its card screenshot in `scott/images/screenshots/`, which is added by hand. The portfolio project owns `scott/index.html` and `scott/styles.css`, and this project never writes them. If the Life Expectancy card on the portfolio needs changing, the new text is handed to the portfolio project, which makes the change.
+
+- `site_build/build_site.py` writes only to `SITE_DIR` (`index.html`, `images/`, `notebooks/`, `docs/` inside `scott/life-expectancy/`). It has no step that writes `scott/index.html`. As a safeguard it now stops with an error if `SITE_DIR` points at the portfolio root.
+- History: on 2026-11-15 the card in `scott/index.html` was edited directly from this project (adding the card, updating the repo link, replacing the Streamlit tag). Those were one-off manual edits, not build steps, and will not be repeated.
+- When committing in the Schirko repo, stage only this project's folder: `git add scott/life-expectancy`.
 
 ## Decision: Streamlit Removed
 
@@ -293,10 +328,11 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 17. Streamlit removed | Deleted the Streamlit app (`Home.py`, `pages/`), its Docker and dev-container setup, the `streamlit`, `plotly` and `shap` packages, and the UI-only config settings | The project is presented as a static page under schirko.com/scott; an app nobody can reach is code to maintain for nothing | `git rm` of the app files; `requirements.txt` trimmed; `input_type`/`show_in_ui` removed from the config, `config_loader.py` and the model metadata; `feature_ranges` and the all-rows clipped copy removed from `train_model.py`, so `data/clean_data.csv` now holds the unclipped cleaned data; docs rewritten around the project page |
 | 18. Fairness check | Compared developed and developing countries on unseen-country predictions: average miss, bias, like-for-like by life-expectancy band, interval coverage, and a country bootstrap; with source and corrected Status labels | A model that is worse for one group of countries should say so; a portfolio project should test it, not assume it | `analysis/fairness_check.py` (GroupKFold(5), leak-free clipping) saves `model/fairness_check.json`; six advanced economies labelled "Developing" relabelled for the comparison only. Result: developing countries missed by 0.40 years more (95% range 0.09-0.72), gap holds within matching life-expectancy bands, no group bias, interval covers 76.5% vs 80.1% |
 | 19. Uncertainty band sized per group | Stretched the 80% tree-spread band by a separate factor for developed and developing countries, chosen by cross-fitting on held-out countries | The fairness check showed the band under-covered developing countries (76.5%); an "80%" band should mean 80% for every group | `analysis/interval_calibration.py` saves `model/interval_calibration.json`. Result: developed 80.4%, developing 79.5% (band about 10% wider), versus 82.1% / 78.9% with one shared factor |
+| 20. Shrinkage-correction test | Measured the pull toward the middle by true value and by prediction, and tested linear and isotonic recalibration with nested country cross-validation | Before "fixing" a bias, check it is one; an interviewer will ask whether the over-prediction of low life expectancies can be corrected | `analysis/shrinkage_check.py` saves `model/shrinkage_check.json`. Result: calibration slope 0.99, errors by prediction within about 0.5 years, so the pattern is regression to the mean; corrections raised the average miss (2.131 → 2.134 linear, 2.208 isotonic); no model change |
 
 **Found while building milestone 13 (not yet fixed):**
 
 - **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. The fairness check (milestone 18) relabels them for its comparison; the source data is unchanged.
-- **Health expenditure stored as zero.** `Pct_Expenditure` is exactly 0 in 606 of 2,928 cleaned rows, across 181 countries (for example Canada, Australia and Austria in 2015). These are almost certainly missing values stored as zero, which the cleaning rules do not treat as missing for this column. The feature carries about 0.5% of the model's built-in importance, so the effect on predictions is small, but a visitor who loads Canada now sees a health expenditure of 0.
+- **Health expenditure stored as zero.** `Pct_Expenditure` is exactly 0 in 606 of 2,928 cleaned rows, across 181 countries (for example Canada, Australia and Austria in 2015). These are almost certainly missing values stored as zero, which the cleaning rules do not treat as missing for this column. The feature carries about 0.5% of the model's built-in importance, so the effect on predictions is small.
 
-**Still open:** test a shrinkage correction, source outside data on conflict and epidemics, automated tests, and the small fallback-median leak (countries with no data at all for an input).
+**Still open:** source outside data on conflict and epidemics, automated tests, and the small fallback-median leak (countries with no data at all for an input).

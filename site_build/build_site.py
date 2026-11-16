@@ -56,6 +56,17 @@ def _read_dotenv() -> None:
 _read_dotenv()
 SITE_DIR = Path(os.getenv("SITE_DIR", "").strip() or ROOT / "site")
 
+# Ownership rule (2026-11-16): this project writes ONLY inside its own folder,
+# schirko.com/scott/life-expectancy/ (plus its card screenshot, added by hand).
+# The portfolio project owns scott/index.html and scott/styles.css; never write
+# them. Card changes go to the portfolio project as text. Stop if SITE_DIR
+# points at the portfolio root instead of this project's folder.
+if SITE_DIR.name.lower() == "scott" or (SITE_DIR / "styles.css").exists():
+    raise SystemExit(
+        f"SITE_DIR={SITE_DIR} looks like the portfolio root. This build may only write "
+        "inside scott/life-expectancy/; check SITE_DIR in .env."
+    )
+
 
 NOTEBOOKS = {
     "Life_Expectancy_Claude.ipynb": (
@@ -64,7 +75,7 @@ NOTEBOOKS = {
         "This is where the project started.",
     ),
 }
-DOC_PAGES = {"DOCUMENTATION.md": "Project documentation"}
+DOC_PAGES = {"FINDINGS.md": "Findings", "DOCUMENTATION.md": "Project documentation"}
 
 # Shared "back to portfolio" bar. The portfolio owns /scott/backbar.css; link to it,
 # never copy or restyle the .sx- classes. Absolute /scott/ paths work at any depth.
@@ -84,6 +95,7 @@ BACK_BAR = (
     '<span class="sx-crumb">Life Expectancy Predictor</span>'
     '<span class="sx-links"><a href="/scott/life-expectancy/">Overview</a>'
     '<a href="/scott/life-expectancy/notebooks/Life_Expectancy_Claude.html">Notebook</a>'
+    '<a href="/scott/life-expectancy/docs/FINDINGS.html">Findings</a>'
     '<a href="/scott/life-expectancy/docs/DOCUMENTATION.html">Docs</a></span>'
     "</div>"
 )
@@ -202,6 +214,24 @@ def make_charts(diag: dict) -> None:
     _save(fig, "showdown.png")
 
 
+def make_shrinkage_chart(shr: dict) -> None:
+    """Average error by tenth of the true values vs by tenth of the predictions."""
+    d = shr["decile_bias_raw"]
+    x = np.arange(1, 11)
+    fig, ax = plt.subplots(figsize=(8, 3.8))
+    ax.axhline(0, color="#bbb", lw=1)
+    ax.plot(x, d["by_true_value"], "o-", color=WARM, lw=2.2, label="Grouped by true life expectancy")
+    ax.plot(x, d["by_prediction"], "o-", color=GREEN, lw=2.2, label="Grouped by the model's prediction")
+    ax.set_xticks(x)
+    ax.set_xticklabels(["lowest"] + [""] * 8 + ["highest"])
+    ax.set_xlabel("Tenth of the rows (unseen countries)")
+    ax.set_ylabel("Average error, years (actual - predicted)")
+    ax.set_title("The pull toward the middle is regression to the mean, not a bias", loc="left", fontweight="bold")
+    ax.legend(frameon=False, labelcolor=INK, loc="lower right")
+    _style(ax)
+    _save(fig, "shrinkage.png")
+
+
 def make_fairness_chart(fair: dict) -> None:
     """Average miss for developed vs developing countries, overall and inside
     the same life-expectancy bands (corrected Status labels)."""
@@ -271,6 +301,7 @@ def main() -> None:
     fc = fair["corrected_labels"]
     cal = json.loads((ROOT / "model" / "interval_calibration.json").read_text(encoding="utf-8"))
     cal_c = cal["evaluation"]["C_per_group"]
+    shr = json.loads((ROOT / "model" / "shrinkage_check.json").read_text(encoding="utf-8"))
     g = diag["group_cv"]
     sd = dict(showdown(diag))
     conc = g["hard_cases"]["concentration"]
@@ -278,6 +309,7 @@ def main() -> None:
     SITE_DIR.mkdir(parents=True, exist_ok=True)
     make_charts(diag)
     make_fairness_chart(fair)
+    make_shrinkage_chart(shr)
 
     today = date.today()
     values = {
@@ -288,6 +320,8 @@ def main() -> None:
         "r2_group": f"{g['group']['r2_mean']:.2f}",
         "miss_random": f"{g['random']['oof_mae']:.2f}",
         "miss_group": f"{g['group']['oof_mae']:.2f}",
+        "miss_group_1": f"{g['group']['oof_mae']:.1f}",
+        "miss_random_1": f"{g['random']['oof_mae']:.1f}",
         "cover_random": f"{diag['calibration']['empirical_coverage_pct']:.0f}",
         "cover_group": f"{g['interval_unseen']['coverage_pct']:.0f}",
         "hiv_share": f"{meta['feature_importances']['HIV_AIDS'] * 100:.0f}",
@@ -313,6 +347,11 @@ def main() -> None:
         "cal_factor_dvg": f"{(cal['factors_fitted_on_all']['Developing'] - 1) * 100:.0f}",
         "cal_cov_dev": f"{cal_c['Developed']['coverage_pct']:.0f}",
         "cal_cov_dvg": f"{cal_c['Developing']['coverage_pct']:.1f}",
+        "shr_slope": f"{shr['A_raw']['calibration_slope']:.2f}",
+        "shr_low": f"{-shr['A_raw']['bias_lowest_10pct']:.1f}",
+        "shr_mae_raw": f"{shr['A_raw']['mae']:.2f}",
+        "shr_mae_lin": f"{shr['B_linear']['mae']:.2f}",
+        "shr_mae_iso": f"{shr['C_isotonic']['mae']:.2f}",
         "github": GITHUB,
         "notebooks": export_notebooks(),
         "backbar_css": BACKBAR_CSS,
