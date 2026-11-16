@@ -89,9 +89,9 @@ def load_and_clean(config: DatasetConfig) -> pd.DataFrame:
 
 def winsorize_df(df: pd.DataFrame, config: DatasetConfig) -> pd.DataFrame:
     """Apply configured Winsorization limits to numeric feature columns, using
-    ALL rows. Only for describing the data (Dashboard, slider ranges): model
-    evaluation clips inside each training split instead (see FoldWinsorizer).
-    The target is never clipped, so it always shows the true recorded value."""
+    ALL rows. This is the old, leaky way, kept only so analysis/leak_check.py
+    can reproduce the old scores; training and evaluation clip inside each
+    training split instead (see FoldWinsorizer). The target is never clipped."""
     df = df.copy()
     for col, bounds in config.winsorize_limits.items():
         if col == config.target_column:
@@ -99,17 +99,6 @@ def winsorize_df(df: pd.DataFrame, config: DatasetConfig) -> pd.DataFrame:
         if col in df.columns:
             lo, hi = bounds
             df[col] = winsorize(df[col].to_numpy(), limits=(lo, hi))
-    return df
-
-
-def get_model_ready_df(config: DatasetConfig) -> pd.DataFrame:
-    """Clean -> winsorize (all rows) -> drop configured columns.
-    Descriptive version for the Dashboard and slider ranges. For training and
-    evaluation use get_unclipped_df() plus FoldWinsorizer."""
-    df = load_and_clean(config)
-    df = winsorize_df(df, config)
-    to_drop = [c for c in config.drop_columns if c in df.columns]
-    df = df.drop(columns=to_drop)
     return df
 
 
@@ -129,8 +118,8 @@ class FoldWinsorizer(BaseEstimator, TransformerMixin):
     clip limits (e.g. "the top 16% of HIV_AIDS values") were partly set by the
     test rows: a small data leak. This transformer is the fix. fit() finds the
     cut-off values on the training rows using the same per-column percentages
-    as the config; transform() clips any rows (train, test, or a visitor's
-    inputs) to those cut-offs. Put it first in a scikit-learn Pipeline and
+    as the config; transform() clips any rows (train or test) to those
+    cut-offs. Put it first in a scikit-learn Pipeline and
     every cross-validation fold learns its own limits from its own training
     rows.
 
@@ -165,19 +154,6 @@ def fold_winsorizer(config: DatasetConfig) -> FoldWinsorizer:
     )
 
 
-def feature_ranges(df: pd.DataFrame, config: DatasetConfig) -> dict:
-    """Return {col: (min, max, median)} for building sliders/defaults in the app."""
-    ranges = {}
-    for col in config.predictor_columns:
-        if col in df.columns:
-            ranges[col] = (
-                float(df[col].min()),
-                float(df[col].max()),
-                float(df[col].median()),
-            )
-    return ranges
-
-
 def missingness_report(config: DatasetConfig) -> list:
     """
     Report missing-value rates per feature at three pipeline stages:
@@ -186,7 +162,7 @@ def missingness_report(config: DatasetConfig) -> list:
         to real NaN, but before interpolation
       - final: after interpolation/fallback-median imputation
 
-    Used by the Diagnostics page to show what the cleaning pipeline actually
+    Saved in model/diagnostics.json to show what the cleaning pipeline actually
     did to missingness, rather than asserting it without evidence.
     """
     raw_df = pd.read_csv(config.source_csv)

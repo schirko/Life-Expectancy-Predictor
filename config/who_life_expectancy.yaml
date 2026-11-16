@@ -3,11 +3,10 @@
 # This file holds ALL the knowledge that is specific to one particular CSV:
 # which columns exist, how to rename messy headers, which values secretly
 # mean "missing", how to handle outliers, which columns are model
-# predictors, and how to describe them in the UI.
+# predictors, and how to label them.
 #
-# data_prep.py, train_model.py, and the Streamlit pages contain none of
-# this -- they just read whichever config is pointed at. To point the app
-# at a different (but similarly-shaped) WHO-style CSV, copy this file,
+# data_prep.py and train_model.py contain none of this -- they just read
+# whichever config is pointed at. To point the project at a different (but similarly-shaped) WHO-style CSV, copy this file,
 # edit the values below to match the new CSV's columns, and re-run
 # `python train_model.py config/your_new_config.yaml`.
 
@@ -19,7 +18,7 @@ dataset:
   source_csv: "data/Life_Expectancy_WHO_Data.csv"
 
 # Columns that identify a row but are NOT model features (kept for
-# filtering/display in the dashboard, not fed to the model).
+# grouping and reporting, not fed to the model).
 id_columns: ["Country", "Year", "Status"]
 
 # The column the model predicts.
@@ -83,67 +82,50 @@ drop_columns:
   - Population
   - BMI
 
-# The model's predictors, and how each should appear in the Predict page's UI.
-# input_type: "slider" (bounded/rate-style) or "number" (direct entry).
-# show_in_ui: false means the model still uses this feature (filled with
-# its dataset median), but no control is shown for it on the Predict page.
+# The model's predictors, with a readable label and description for each.
 predictors:
   - column: Adult_Mortality
     label: "Adult Mortality (per 1,000 adults)"
     description: "Probability of dying between ages 15-60, per 1,000 population. Higher = worse."
-    input_type: slider
   - column: HIV_AIDS
     label: "HIV/AIDS deaths (per 1,000, ages 0-4)"
     description: "Deaths per 1,000 live births caused by HIV/AIDS, ages 0-4."
-    input_type: slider
   - column: Under-Five_Deaths
     label: "Under-Five Deaths (per 1,000)"
     description: "Deaths per 1,000 population among children under age 5."
-    input_type: slider
   - column: Polio
     label: "Polio immunization (%)"
     description: "% of 1-year-olds immunized against polio."
-    input_type: slider
   - column: Diphtheria
     label: "Diphtheria (DTP3) immunization (%)"
     description: "% of 1-year-olds immunized against diphtheria (DTP3 vaccine)."
-    input_type: slider
   - column: Hepatitis_B
     label: "Hepatitis B immunization (%)"
     description: "% of 1-year-olds immunized against Hepatitis B."
-    input_type: slider
   - column: Thinness_10-19_Years
     label: "Thinness, ages 10-19 (%)"
     description: "% of 10-19 year-olds classified as underweight (thin) for their age."
-    input_type: slider
   - column: Alcohol
     label: "Alcohol consumption (litres/capita)"
     description: "Liters of pure alcohol consumed per capita (age 15+ population)."
-    input_type: number
   - column: Pct_Expenditure
     label: "Health expenditure (% of GDP per capita)"
     description: "Health expenditure as a percentage of GDP per capita."
-    input_type: number
   - column: Ttl_Expend
     label: "Total govt. health expenditure (% of total govt. expenditure)"
     description: "Total government health spending as a percentage of total government spending."
-    input_type: number
   - column: Income_Comp_Of_Resources
     label: "Income Composition of Resources (0-1 index)"
     description: >
       A UN Human Development Index sub-component (0-1 scale) capturing how
       effectively a country converts income into human development
       outcomes. Higher = more effective.
-    input_type: number
   - column: Schooling
     label: "Schooling (avg. years)"
     description: "Average number of years of schooling completed."
-    input_type: number
   - column: Measles
     label: "Measles cases (reported per 1,000)"
     description: "Number of reported measles cases per 1,000 population."
-    input_type: number
-    show_in_ui: false
 
 model:
   type: random_forest

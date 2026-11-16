@@ -1,191 +1,83 @@
 # Life Expectancy Predictor
 
-A Streamlit app built on top of the WHO Life Expectancy data-science project:
-a **Dashboard** for exploring trends/correlations/rankings, and a **Predict**
-page that uses a trained Random Forest model (test R² ≈ 0.96, country-grouped CV
-R² ≈ 0.90) to estimate life expectancy from health and economic indicators,
-with SHAP-based per-prediction explanations.
+A data-science project that predicts a country's life expectancy from WHO
+health and economic indicators (2000–2015) with a Random Forest, and tests
+honestly how well it does on countries it has never seen.
+
+- Random split: R² 0.96, average miss 1.15 years
+- Countries held out entirely (GroupKFold by country): R² 0.90, average miss 2.13 years
+
+The second number is the one to trust: a random split puts a country's other
+years in training. The full write-up, with charts, is at
+<https://schirko.com/scott/life-expectancy/>.
 
 ## Project structure
 
 ```
-life_expectancy_app/
-├── Home.py                     # Home page (incl. Model Card)
-├── pages/
-│   ├── 1_Dashboard.py          # Explore page
-│   ├── 2_Predict.py            # Prediction page (SHAP explanations)
-│   └── 3_Diagnostics.py        # Residuals, permutation importance, PDP,
-│                                #   calibration, tuning results, data quality
+Life-Expectancy-Predictor/
 ├── config/
 │   └── who_life_expectancy.yaml   # ALL dataset-specific knowledge lives here
 ├── config_loader.py            # Loads + validates a dataset config against its CSV
-├── data_prep.py                # Generic, config-driven cleaning pipeline
-├── train_model.py              # Trains & saves the model + diagnostics
-├── tune_hyperparameters.py     # Optional: GridSearchCV, run separately (~few min)
+├── data_prep.py                # Config-driven cleaning; FoldWinsorizer (leak-free outlier clipping)
+├── train_model.py              # Trains, evaluates and saves the model + diagnostics
+├── tune_hyperparameters.py     # Optional: country-held-out grid search (~1-3 min)
 ├── analysis/
 │   └── leak_check.py           # Optional: measures the old outlier-clipping leak
+├── site_build/                 # Generates the static project page
+├── notebooks/                  # The original practicum notebook
 ├── data/
-│   └── Life_Expectancy_WHO_Data.csv
-├── model/                      # Created by train_model.py / tune_hyperparameters.py
-│   ├── rf_model.joblib
-│   ├── metadata.json
-│   ├── diagnostics.json
-│   └── tuning_results.json     # Only after running tune_hyperparameters.py
-└── requirements.txt
+│   ├── Life_Expectancy_WHO_Data.csv
+│   └── clean_data.csv          # Written by train_model.py
+├── model/                      # Written by the scripts above
+└── docs/DOCUMENTATION.md       # Methodology, findings and build log
 ```
 
 ## Setup
 
-```bash
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+```
+python -m venv venv
+venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+pip install -r site_build/requirements-site.txt   # only to build the project page
 ```
 
-## 1. Train the model (do this once, or whenever the data/config changes)
+## Run
 
-```bash
-python train_model.py
+```
+python train_model.py                 # train, evaluate, save model/ and data/clean_data.csv
+python tune_hyperparameters.py        # optional
+python -m analysis.leak_check         # optional
+python -m site_build.build_site       # build the project page
 ```
 
-This validates the config against the CSV's actual columns, cleans the raw
-CSV, trains the Random Forest, runs country-grouped (GroupKFold) cross-validation, and computes a
-full diagnostics suite (residuals, permutation importance, partial
-dependence, uncertainty calibration, missingness report). Saves:
-- `model/rf_model.joblib` — the trained model
-- `model/metadata.json` — test metrics, CV scores, feature importances,
-  feature ranges, and predictor UI metadata (labels/descriptions)
-- `model/diagnostics.json` — everything the Diagnostics page renders
-- `data/clean_data.csv` — the cleaned dataset used by the dashboard
+`train_model.py` validates the config against the CSV, cleans the data, trains
+the Random Forest, scores it on a random split and on held-out countries, and
+saves `model/rf_model.joblib`, `model/metadata.json` and
+`model/diagnostics.json` (residuals, permutation importance, partial
+dependence, interval calibration, unseen-country errors, hardest countries and
+a four-model comparison).
 
-## Optional: outlier-clipping leak check
+## Project page
 
-```bash
-python -m analysis.leak_check
-```
-
-Scores four versions of the model (old all-rows clipping vs. clipping learned
-from training rows, with and without clipping the target) on the same splits
-and saves `model/leak_check.json`, shown on Diagnostics → Data Quality. Takes
-about a minute.
-
-## Optional: hyperparameter tuning
-
-```bash
-python tune_hyperparameters.py
-```
-
-Runs a GridSearchCV (36 combinations × 5 country-held-out folds via GroupKFold, tested on held-out countries) and saves
-`model/tuning_results.json`. Takes a few minutes — kept as a separate
-script from `train_model.py` so normal training stays fast. The
-Diagnostics page's "Hyperparameter Tuning" tab shows its results if
-present, or a note that it hasn't been run yet.
-
-## 2. Run the app
-
-```bash
-streamlit run Home.py
-```
-
-This opens the app in your browser (usually `http://localhost:8501`).
-
-## Deployment
-
-**Decision (2026-11-15):** Streamlit is no longer used to present this project.
-The public page is the static write-up at <https://schirko.com/scott/life-expectancy/>,
-generated by `site_build/build_site.py`. The Streamlit code below still runs locally
-but is not part of the portfolio.
-
-The app is no longer hosted publicly (the lifeexpectancy.intellidec.net server was retired on 2026-11-15; all of Scott's projects now live under schirko.com/scott). Run it locally with `streamlit run Home.py`. The `Dockerfile` is kept for anyone who wants to run it in a container:
-
-```bash
-docker build -t life-expectancy .
-docker run -p 8501:8501 life-expectancy
-```
-
-Details are in `docs/APP_DOCUMENTATION.md` under "Deployment".
+`python -m site_build.build_site` redraws the charts from the saved results,
+fills in the numbers, exports the notebook and `docs/DOCUMENTATION.md`, and
+writes the page to `SITE_DIR` from `.env` (copy `.env.example`; on Scott's PC
+this is the Schirko portfolio folder served at schirko.com/scott/life-expectancy/).
+Without `SITE_DIR` it writes to a git-ignored `site/` folder. After building,
+push this repo, then push the Schirko repo so Coolify redeploys.
 
 ## Swapping in a different dataset
 
-This app is **config-driven**: none of the Python code hardcodes column
-names, winsorization limits, or the predictor list. All of that lives in
-`config/who_life_expectancy.yaml`.
+The code holds no dataset-specific knowledge. To use a similarly shaped
+WHO-style CSV (a country-year panel with a numeric target), copy
+`config/who_life_expectancy.yaml`, edit `dataset.source_csv`, `target_column`,
+`column_renames`, `winsorize_limits`, `drop_columns` and the `predictors` list,
+then run `python train_model.py config/my_new_dataset.yaml`. A mismatch with
+the CSV fails fast with a list of exactly what's missing.
 
-To point the app at a different, similarly-shaped WHO-style CSV (a country-
-year panel with a numeric target and numeric predictors):
+## History
 
-1. Copy `config/who_life_expectancy.yaml` to a new file, e.g.
-   `config/my_new_dataset.yaml`
-2. Edit its values to match the new CSV: `dataset.source_csv`,
-   `target_column`, `column_renames`, `winsorize_limits`, `drop_columns`,
-   and the `predictors` list (with labels/descriptions/UI type for each)
-3. Run training against that config:
-   ```bash
-   python train_model.py config/my_new_dataset.yaml
-   ```
-4. If the config doesn't match the CSV's actual columns, this fails fast
-   with a clear list of exactly what's missing — check `config_loader.py`'s
-   `validate_schema()` for the checks it runs
-5. Restart the Streamlit app — the Predict page's sliders/inputs, labels,
-   and descriptions are all read from `model/metadata.json`, so they update
-   automatically without touching any page code
-
-**Known limitation:** the Dashboard page still assumes `Country`/`Year`/
-`Status`-style identifying columns for its filters (this app was designed
-around WHO-style country-year panel data specifically). A dataset with a
-genuinely different shape would need its own dashboard filters, even though
-the cleaning pipeline and Predict page would work unchanged.
-
-## Notes
-
-- The cleaning pipeline in `data_prep.py` mirrors the original notebook:
-  header normalization, implicit-null handling, per-entity time-series
-  interpolation, Winsorization, and dropping highly-collinear features —
-  now entirely driven by the active config rather than hardcoded. The
-  Winsorization limits are learned from the training rows only (inside each
-  split), and life expectancy itself is never clipped; see "Outlier Clipping
-  Leak Check" in `docs/APP_DOCUMENTATION.md`.
-- The Predict page mixes sliders (bounded/percentage-style indicators) and
-  direct numeric entry (less intuitive-range indicators), per each
-  predictor's `input_type` in the config.
-- The "prediction spread" shown on the Predict page comes from the variance
-  across the Random Forest's individual trees — a rough, not statistically
-  rigorous, uncertainty indicator. SHAP values (also on the Predict page)
-  give a more principled per-prediction explanation.
-- `train_model.py` reports a single 80/20 split AND GroupKFold(5) cross-validation
-  that holds out whole countries. The grouped score is lower because random
-  splits leak a country's other years into training; it estimates accuracy on
-  countries the model has never seen (Diagnostics → Unseen Countries).
-
-## Ideas for next steps
-
-- Hyperparameter tuning (GridSearchCV) instead of the current default
-  `n_estimators=200`
-- Data quality / missingness-before-and-after visualization
-- A second example config for a genuinely different WHO dataset, to prove
-  out the config-driven claim end-to-end
-- ~~Deploy via Streamlit Community Cloud for a shareable public link~~ (done, moved to Scott's own server on 2026-11-11, then retired on 2026-11-15 when all projects moved to schirko.com/scott)
-
-
-## Documentation
-
-Full documentation (setup, methodology, how to interpret each diagnostic, and a what/why/how build log) is in [`docs/APP_DOCUMENTATION.md`](docs/APP_DOCUMENTATION.md).
-
-## Portfolio page
-
-The project also has a static page at <https://schirko.com/scott/life-expectancy/>, linked from the portfolio at schirko.com/scott. It is the public write-up of the project: headline results, charts, the original notebook and these docs, each with a "back" bar and a noindex tag.
-
-The page is generated by `site_build/build_site.py` (same recipe as the meat-prices project). Setup, once:
-
-```
-pip install -r site_build/requirements-site.txt
-copy .env.example .env
-```
-
-Then, to rebuild after any change (`SITE_DIR` in `.env` points at the Schirko portfolio folder; without it the page is written to a git-ignored `site/` folder):
-
-```
-python -m site_build.build_site
-```
-
-Charts are redrawn from `model/*.json` and `data/clean_data.csv`; the notebook is exported from `notebooks/` using its saved outputs. Then push this repo, and push the Schirko repo so Coolify redeploys. The generator, notebook and `.env` are excluded from the Docker image by `.dockerignore`.
+The project began as an M.S. practicum notebook and later became a Streamlit
+app. On 2026-11-15 Streamlit was removed: the project is now presented only as
+the static page above. See "Decision: Streamlit Removed" and the build log in
+[`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md).

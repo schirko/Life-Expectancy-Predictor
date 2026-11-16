@@ -7,15 +7,15 @@ What it does (same recipe as the meat-prices project, decision D36 there):
      and the cleaned data (data/clean_data.csv).
   2. Fills the numbers into site_build/site_template.html -> index.html.
   3. Exports the notebook in notebooks/ to HTML (using the outputs saved in it).
-  4. Turns docs/APP_DOCUMENTATION.md into an HTML page.
+  4. Turns docs/DOCUMENTATION.md into an HTML page.
   Every page gets a "back" bar and a noindex tag.
 
 Where it writes: the folder named by SITE_DIR in .env (Scott's PC: the Schirko
 portfolio folder, served at schirko.com/scott/life-expectancy/). With no SITE_DIR
 it writes to a git-ignored site/ folder inside the project.
 
-The Streamlit app itself is NOT built here. It runs locally (streamlit run Home.py)
-and is no longer hosted publicly; this page is the project's public write-up.
+This page is the project's public face; the project has no app (Streamlit was
+removed on 2026-11-15, milestone 17).
 """
 from __future__ import annotations
 
@@ -60,10 +60,10 @@ NOTEBOOKS = {
     "Life_Expectancy_Claude.ipynb": (
         "The original practicum notebook",
         "Cleaning about 2,900 WHO records, exploring them, and comparing the first regression models. "
-        "This is where the project started, before the app.",
+        "This is where the project started.",
     ),
 }
-DOC_PAGES = {"APP_DOCUMENTATION.md": "App documentation"}
+DOC_PAGES = {"DOCUMENTATION.md": "Project documentation"}
 
 # Shared "back to portfolio" bar. The portfolio owns /scott/backbar.css; link to it,
 # never copy or restyle the .sx- classes. Absolute /scott/ paths work at any depth.
@@ -83,7 +83,7 @@ BACK_BAR = (
     '<span class="sx-crumb">Life Expectancy Predictor</span>'
     '<span class="sx-links"><a href="/scott/life-expectancy/">Overview</a>'
     '<a href="/scott/life-expectancy/notebooks/Life_Expectancy_Claude.html">Notebook</a>'
-    '<a href="/scott/life-expectancy/docs/APP_DOCUMENTATION.html">Docs</a></span>'
+    '<a href="/scott/life-expectancy/docs/DOCUMENTATION.html">Docs</a></span>'
     "</div>"
 )
 

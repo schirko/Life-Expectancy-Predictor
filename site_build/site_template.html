@@ -103,7 +103,7 @@ ${back}
   same-country overlap.</li>
   <li><b>The algorithm isn't the bottleneck.</b> Gradient boosting, histogram boosting and linear regression score
   ${sd_gb}, ${sd_hgb} and ${sd_lin} on the same unseen countries. The three tree models are effectively tied, so the
-  Random Forest stays (it also supports SHAP explanations).</li>
+  Random Forest stays.</li>
   <li><b>A few countries are very hard.</b> ${top_country} is missed by ${top_country_miss} years. The worst 10% of
   countries carry ${top10_share}% of all error, and every model pulls the extremes toward the middle: too high for the lowest
   life expectancies, too low for the highest.</li>
@@ -155,7 +155,7 @@ ${notebooks}
 </ul>
 
 <h2>More</h2>
-<p><a href="docs/APP_DOCUMENTATION.html">Full documentation</a>: methodology, how to read each diagnostic, and a what/why/how build log.</p>
+<p><a href="docs/DOCUMENTATION.html">Full documentation</a>: methodology, how to read each diagnostic, and a what/why/how build log.</p>
 
 <footer>
   <a href="../">Scott Schirkofsky</a> · Page built ${built}

@@ -1,6 +1,7 @@
 """
-Train the Random Forest life expectancy model and save it to disk for the
-Streamlit app to load. Fully config-driven: which CSV, which columns, which
+Train the Random Forest life expectancy model, evaluate it (random split and
+countries held out entirely), and save the model, metadata and diagnostics
+that the project page is built from. Fully config-driven: which CSV, which columns, which
 predictors, and how to clean them all come from a YAML config file (see
 config/who_life_expectancy.yaml), not from hardcoded values in this script.
 
@@ -31,9 +32,7 @@ from config_loader import ConfigError, load_config, validate_schema
 from data_prep import (
     _clean_column_names,
     _fix_implicit_nulls,
-    feature_ranges,
     fold_winsorizer,
-    get_model_ready_df,
     get_unclipped_df,
     missingness_report,
 )
@@ -83,7 +82,7 @@ def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits
 
     def run_cv(splitter, use_groups, track_interval=False):
         """One fit per fold; returns per-fold R2 and out-of-fold predictions.
-        If track_interval, also records whether the Predict page's 80%
+        If track_interval, also records whether the 80%
         tree-spread interval (10th-90th percentile across trees) contained
         the true value for each held-out row."""
         oof = np.zeros(len(y))
@@ -164,7 +163,7 @@ def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits
             "data_sorted_by_group": sorted_by_group,
             "groups_straddling_folds": int(len(straddling)),
         },
-        # Does the Predict page's "80%" interval still hold for entities the
+        # Does the tree-spread "80%" interval still hold for entities the
         # model has never seen? (Compare with calibration.empirical_coverage_pct,
         # which was measured on a random split.)
         "interval_unseen": {
@@ -384,10 +383,6 @@ def main():
     # shape the clip limits, and the target keeps its true recorded values.
     df = get_unclipped_df(config)
     df = df.dropna(subset=config.predictor_columns + [config.target_column])
-    # Descriptive copy (clipped using all rows) for the Dashboard and the
-    # Predict page's slider ranges; not used for any score.
-    df_desc = get_model_ready_df(config)
-    df_desc = df_desc.dropna(subset=config.predictor_columns + [config.target_column])
     print(f"Model-ready rows: {len(df)}")
 
     x = df[config.predictor_columns].values
@@ -406,7 +401,7 @@ def main():
     pipe = rf_pipeline(config, n_estimators, random_state)
     pipe.fit(x_train_raw, y_train)
     clipper = pipe.named_steps["clip"]
-    model = pipe.named_steps["rf"]  # the saved model; the app clips nothing, as before
+    model = pipe.named_steps["rf"]  # the saved model (expects clipped inputs)
     x_train = clipper.transform(x_train_raw)
     x_test = clipper.transform(x_test_raw)
 
@@ -459,8 +454,6 @@ def main():
             "column": p.column,
             "label": p.label,
             "description": p.description,
-            "input_type": p.input_type,
-            "show_in_ui": p.show_in_ui,
         }
         for p in config.predictors
     ]
@@ -476,7 +469,7 @@ def main():
         "test_mae": mae,
         "test_rmse": rmse,
         # Headline CV = group folds (whole countries held out). The random-fold
-        # figures are kept alongside for comparison on the Diagnostics page.
+        # figures are kept alongside for comparison.
         "cv_method": f"GroupKFold(5) by {config.group_column}",
         "cv_r2_mean": float(cv_scores.mean()),
         "cv_r2_std": float(cv_scores.std()),
@@ -485,7 +478,6 @@ def main():
         "cv_random_r2_std": cv_report["random"]["r2_std"],
         "n_rows": len(df),
         "feature_importances": importances,
-        "feature_ranges": feature_ranges(df_desc, config),
         "clipping": "learned from training rows only (FoldWinsorizer); target not clipped",
         "clip_limits_train": {
             col: [float(lo) if np.isfinite(lo) else None, float(hi) if np.isfinite(hi) else None]
@@ -502,7 +494,7 @@ def main():
     # ---- Diagnostics: residuals, permutation importance, partial ----
     # ---- dependence, uncertainty calibration, and data quality. ----
     # Kept in a separate file from metadata.json since these are larger
-    # and only needed by the Diagnostics page, not on every app boot.
+    # and only needed for the analysis write-up and the project page.
     print("\nComputing diagnostics...")
 
     residuals = (y_test - y_pred).tolist()
@@ -575,7 +567,7 @@ def main():
         json.dump(diagnostics, f, indent=2)
     print(f"Saved diagnostics to {DIAGNOSTICS_PATH}")
 
-    df_desc.to_csv(CLEAN_DATA_PATH, index=False)
+    df.to_csv(CLEAN_DATA_PATH, index=False)  # cleaned, unclipped
     print(f"Saved cleaned dataset to {CLEAN_DATA_PATH}")
 
 

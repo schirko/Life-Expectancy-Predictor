@@ -19,9 +19,8 @@ Usage:
     python tune_hyperparameters.py                     # uses the default config
     python tune_hyperparameters.py config/my_other.yaml # uses a different config
 
-After running, `model/tuning_results.json` is saved. The Diagnostics page
-shows its results if present, or a note that tuning hasn't been run yet.
-This does NOT overwrite the deployed model (model/rf_model.joblib) -- it
+After running, `model/tuning_results.json` is saved; the project page reads
+it. This does NOT overwrite the saved model (model/rf_model.joblib) -- it
 only reports what tuning found. Re-run train_model.py with updated
 `model.n_estimators` etc. in the config if you want to adopt the results.
 """

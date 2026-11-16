@@ -1,68 +1,68 @@
-# Life Expectancy Predictor — App Documentation
+# Life Expectancy Predictor — Project Documentation
 
-> Snapshot exported from the live documentation Doc on 2026-10-13. The Doc is the master copy; refresh this file after each milestone.
->
-> **2026-11-11:** milestone 13 ("Start from a real country") was written directly into this file. The live Doc does not have it yet and needs the same additions: the paragraph under "Using the Predict Page" and build-log row 13.
+A data-science project that predicts a country's life expectancy from WHO health and economic indicators (2000–2015) with a Random Forest, and tests honestly how well it does on countries it has never seen. The results are published as a static page at [schirko.com/scott/life-expectancy](https://schirko.com/scott/life-expectancy/), generated from the saved results by `site_build/build_site.py`.
 
-A Streamlit app that explores WHO life expectancy data (2000–2015) and predicts life expectancy from health and economic indicators using a Random Forest model, with SHAP-based explanations for each prediction.
+> **2026-11-15:** the project no longer uses Streamlit. The interactive app (Dashboard, Predict and Diagnostics pages, plus its Docker and dev-container setup) was removed in milestone 17; see "Decision: Streamlit Removed" and the build log. The analysis, model and diagnostics are unchanged.
 
 ## Overview
 
-The Life Expectancy Predictor has these pages, reachable from the sidebar:
+The project has three parts:
 
-- **Dashboard** — explore the WHO dataset: trends over time, country rankings, a feature correlation heatmap, and the distribution of life expectancy, all filterable by year range, country status (Developed/Developing), and specific countries.
-- **Predict** — enter values for 12 health/economic indicators (via sliders and direct-entry fields) and get a predicted life expectancy from a trained Random Forest, along with a SHAP explanation showing which inputs pushed that specific prediction up or down.
-- **Diagnostics** — deeper analyses of the trained model: residuals, validation on unseen countries, permutation importance, partial dependence, uncertainty calibration, hyperparameter tuning, and data quality. See "Model Diagnostics: Deeper Analysis" below.
+- **Training and evaluation** (`train_model.py`): cleans the data, trains the Random Forest, scores it on a random split and on countries held out entirely, and computes the diagnostics described below into `model/diagnostics.json`.
+- **Optional analyses** (`tune_hyperparameters.py`, `analysis/leak_check.py`): a country-held-out grid search, and the outlier-clipping leak check from milestone 16.
+- **The project page** (`site_build/`): redraws the charts from the saved results, fills in the numbers, exports the original notebook and this document, and writes the page into the portfolio folder.
 
-The project started as a graduate data-science coursework notebook (cleaning, EDA, and several model types compared) and was rebuilt into this deployed, interactive app.
+The project started as a graduate data-science coursework notebook (cleaning, EDA, and several model types compared, in `notebooks/`).
 
 ## Architecture
 
-The app is config-driven: dataset-specific knowledge (column names, cleaning rules, predictor list, UI labels) lives in a YAML config file, not hardcoded in Python.
+The pipeline is config-driven: dataset-specific knowledge (column names, cleaning rules, predictor list and labels) lives in a YAML config file, not hardcoded in Python.
 
 | File | Purpose |
 | --- | --- |
-| `Home.py` | Landing page: dataset overview, model metrics, methodology, limitations |
-| `pages/1_Dashboard.py` | Interactive exploration: trends, rankings, correlations |
-| `pages/2_Predict.py` | Prediction form + SHAP explanation |
-| `pages/3_Diagnostics.py` | Displays the precomputed diagnostics |
-| `config/who_life_expectancy.yaml` | All dataset-specific knowledge: renames, null rules, winsorize limits, predictors, UI hints |
+| `config/who_life_expectancy.yaml` | All dataset-specific knowledge: renames, null rules, winsorize limits, predictors and their labels |
 | `config_loader.py` | Loads a config and validates it against a CSV's actual columns |
 | `data_prep.py` | Generic cleaning pipeline (reads whatever config it's given), including `FoldWinsorizer`, which learns outlier caps from training rows only |
 | `train_model.py` | Trains the Random Forest, runs country-grouped cross-validation, computes diagnostics, saves model + metadata |
 | `tune_hyperparameters.py` | Optional grid search with country-held-out folds |
 | `analysis/leak_check.py` | Optional: measures how much the old all-rows outlier clipping changed the scores (milestone 16) |
-| `model/` | Trained model, metadata, diagnostics and tuning results |
+| `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
+| `notebooks/` | The original practicum notebook, exported to the page |
+| `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
 
 Because the Python code contains no dataset-specific logic, swapping in a similarly shaped WHO-style CSV only requires writing a new config file and re-running training — see "Swapping in a New Dataset".
 
 ## Setup and Installation
 
-1. Create and activate a virtual environment (Python 3.10–3.12 recommended; very new Python releases can lag on `shap`'s compiled dependencies):
+1. Create and activate a virtual environment:
 
    ```
    python -m venv venv
-   venv\Scripts\activate
+   venv\Scripts\Activate.ps1
    ```
-   (In PowerShell: `.\venv\Scripts\Activate.ps1`)
-2. Install dependencies:
+2. Install dependencies (the second file is only needed to build the project page):
 
    ```
    pip install -r requirements.txt
+   pip install -r site_build/requirements-site.txt
    ```
 3. Train the model (validates the config, cleans the data, trains, cross-validates, computes diagnostics, saves outputs to `model/` and `data/clean_data.csv`):
 
    ```
    python train_model.py
    ```
-4. Run the app:
+4. Optional analyses:
 
    ```
-   streamlit run Home.py
+   python tune_hyperparameters.py
+   python -m analysis.leak_check
    ```
-5. Open `http://localhost:8501` in a browser.
+5. Build the project page (written to `SITE_DIR` from `.env`, the Schirko portfolio folder; without it, to a git-ignored `site/` folder):
 
-**Deployment:** the app is not hosted publicly. A server copy ran at lifeexpectancy.intellidec.net from 2026-11-11 until it was retired on 2026-11-15, when all projects moved under schirko.com/scott. The code is at the GitHub repo at [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor). See "Deployment" below.
+   ```
+   python -m site_build.build_site
+   ```
+
 
 ## Data and Methodology
 
@@ -73,14 +73,14 @@ The cleaning pipeline (`data_prep.py`, config-driven):
 1. **Normalize headers** — strip, title-case, and apply configured renames (e.g. `Hiv/Aids` → `HIV_AIDS`)
 2. **Fix implicit nulls** — values that are technically present but really mean "missing" (e.g. a literal `0` in Infant Deaths, or a BMI outside a plausible range) are converted to actual nulls
 3. **Impute** — missing values are filled by interpolating each country's own time series first, falling back to that country's median, then the global median
-4. **Winsorize** — extreme outliers are trimmed per feature (specific percentile limits per column, tuned in the original notebook). Since milestone 16 the limits are learned from the training rows only, inside each split, and life expectancy itself is never trimmed (see "Outlier Clipping Leak Check" below)
+4. **Winsorize** — extreme outliers are trimmed per feature (specific percentile limits per column, tuned in the original notebook). Since milestone 16 the limits are learned from the training rows only, inside each split, and life expectancy itself is never trimmed (see "Outlier Clipping Leak Check" below). `data/clean_data.csv` holds the cleaned data before any trimming
 5. **Drop** highly collinear or unreliable columns (e.g. GDP, Population, BMI) before training
 
 After cleaning: 2,928 model-ready rows (one row dropped for a null target).
 
 ## Model and Performance
 
-The deployed model is a **Random Forest Regressor** (200 trees), chosen after comparing approaches in the original notebook:
+The model is a **Random Forest Regressor** (200 trees), chosen after comparing approaches in the original notebook:
 
 | Model | Performance |
 | --- | --- |
@@ -88,7 +88,7 @@ The deployed model is a **Random Forest Regressor** (200 trees), chosen after co
 | Multiple linear regression | R² = 0.85 |
 | Polynomial regression | R² ≈ 0.57 (plateaus past degree 3) |
 | Decision tree | R² = 0.91 |
-| **Random Forest (deployed)** | **R² = 0.96** |
+| **Random Forest (chosen)** | **R² = 0.96** |
 | Logistic regression (High/Low classification) | 88% accuracy |
 
 **Two performance readings are reported, and they tell different stories:**
@@ -104,17 +104,17 @@ The gap between these two numbers is expected and worth understanding: the data 
 
 ## Auditing the Model Comparison Table
 
-The Home page's Model Comparison section has an expandable **"See the technical work behind each model"** panel showing the actual notebook code behind each of the 6 models' performance numbers — not just the final figures, but how they were produced. Auditing that code turned up two findings worth documenting.
+The six models in the original notebook (table above) were re-run from the notebook's own code to check how each figure was produced, not just the final numbers. That audit turned up two findings worth documenting.
 
 **What overfitting means, briefly:** a model overfits when it starts fitting noise specific to its training data rather than the underlying pattern — it keeps looking better on training data while getting *worse* on data it hasn't seen. The standard way to catch it is comparing training-set performance against held-out test-set performance: a small, stable gap is healthy; a growing gap as model complexity increases is the warning sign.
 
-**Finding 1 — a corrected claim about polynomial regression.** An earlier draft of this documentation and the app's own summary text claimed the polynomial regression model "overfits past degree 3." Re-running the comparison (degrees 1 through 25) shows this was inaccurate: the train/test R² gap stays under 0.02 at every degree tested, never approaching the notebook's own 0.05 overfitting threshold. With only one predictor (Schooling), there simply isn't enough model complexity for meaningful overfitting to occur — performance plateaus around R² ≈ 0.57 at degree 3 and higher degrees add negligible benefit. Both the app and this doc have been corrected to reflect the plateau, not a false overfitting narrative.
+**Finding 1 — a corrected claim about polynomial regression.** An earlier draft of this documentation claimed the polynomial regression model "overfits past degree 3." Re-running the comparison (degrees 1 through 25) shows this was inaccurate: the train/test R² gap stays under 0.02 at every degree tested, never approaching the notebook's own 0.05 overfitting threshold. With only one predictor (Schooling), there simply isn't enough model complexity for meaningful overfitting to occur — performance plateaus around R² ≈ 0.57 at degree 3 and higher degrees add negligible benefit. Both the app and this doc have been corrected to reflect the plateau, not a false overfitting narrative.
 
 **Finding 2 — a real but harmless methodology note in the logistic regression cell.** That cell normalizes its 12 predictors (min-max scaling) *before* splitting into train/test sets, meaning the scaling statistics technically include test-set data — a mild, common form of data leakage (best practice fits a scaler on training data only, then applies those same statistics to the test set). Recomputing with train-only statistics gives an identical 88.05% accuracy, so it made no practical difference here, but it's a pattern worth avoiding on principle, and worth being able to explain if asked.
 
 ## Model Diagnostics: Deeper Analysis
 
-The app's Diagnostics page goes beyond the headline R² figure with eight kinds of analysis, each computed for real against held-out data (not asserted). This section explains what each one is, why it matters, and what it actually found.
+`train_model.py` goes beyond the headline R² figure with several kinds of analysis, each computed against held-out data (not asserted) and saved in `model/diagnostics.json`. This section explains what each one is, why it matters, and what it actually found.
 
 ### Residual Analysis
 
@@ -130,13 +130,13 @@ Importance (either kind) answers "how much does this feature matter," a single n
 
 ### Uncertainty Calibration
 
-A prediction interval is calibrated if it means what it claims — an 80% interval should contain the true value ~80% of the time. The Predict page's tree-spread range (10th–90th percentile across the forest's 200 trees) is a cheap, intuitive approximation, not a statistically rigorous interval like quantile regression forests or conformal prediction would provide. **Finding:** checked empirically against the test set, on a random test split the stated 80% interval covers about 88% of true values, which looks conservative. That figure is flattered by same-country overlap: on countries the model has never seen, coverage drops to 77.3% (mean width 6.68 years), slightly overconfident but within 3 points of the target.
+A prediction interval is calibrated if it means what it claims — an 80% interval should contain the true value ~80% of the time. The tree-spread range (10th–90th percentile across the forest's 200 trees) is a cheap, intuitive approximation, not a statistically rigorous interval like quantile regression forests or conformal prediction would provide. **Finding:** checked empirically against the test set, on a random test split the stated 80% interval covers about 88% of true values, which looks conservative. That figure is flattered by same-country overlap: on countries the model has never seen, coverage drops to 77.3% (mean width 6.68 years), slightly overconfident but within 3 points of the target.
 
 ### Unseen Countries (Group Cross-Validation)
 
 The question: how well does the model predict a country it has never seen? Random splits cannot answer it, because each country has up to 16 yearly rows and the other years land in training. Group cross-validation (scikit-learn `GroupKFold`, grouped by Country) keeps every row of a country in the same fold.
 
-**Finding:** R² falls from 0.961 (random 5-fold) to 0.901 (country-grouped), and the average miss grows from 1.18 to 2.13 years. The median country is off by 1.99 years, and 14.2% of countries are off by more than 3 years. The Diagnostics page lists the hardest countries and compares developed and developing groups.
+**Finding:** R² falls from 0.961 (random 5-fold) to 0.901 (country-grouped), and the average miss grows from 1.18 to 2.13 years. The median country is off by 1.99 years, and 14.2% of countries are off by more than 3 years. `model/diagnostics.json` lists the hardest countries and compares developed and developing groups.
 
 **Why the earlier 0.910 was misread:** the original 5-fold CV ran unshuffled on country-sorted data, so folds were accidentally country-like (only 4 of 183 countries straddled folds). That is why it sat near the grouped score, not because of split luck.
 
@@ -162,7 +162,7 @@ Random Forests resist overfitting even with many/deep trees, because each tree t
 
 **What we are looking for.** Winsorizing caps extreme values (for example, the top 16% of HIV/AIDS figures are set to the value at the 84th percentile). The original pipeline did this once, on all 2,928 rows, before splitting. Two problems followed: (1) the cap values were partly set by the test rows, a data leak; (2) life expectancy itself, the target, was capped at the bottom 1%, so 28 rows had their recorded value raised (the lowest true value, 36.3 years, became 45.6) and the model was scored against altered answers. The question: how much did this flatter the scores?
 
-**How it was fixed.** A new `FoldWinsorizer` in `data_prep.py` learns each cap from the training rows only and then clips any rows (training, test, or a visitor's inputs). It sits first in a scikit-learn `Pipeline`, so every cross-validation fold, the Model Showdown and the tuning search learn their own caps. It reproduces the old scipy `winsorize` exactly when fitted on all rows (checked: maximum difference 0.0). The target is no longer clipped. The Dashboard and the Predict page's slider ranges still use a copy clipped on all rows, because they describe the data and are not used for any score.
+**How it was fixed.** A new `FoldWinsorizer` in `data_prep.py` learns each cap from the training rows only and then clips any rows (training or test). It sits first in a scikit-learn `Pipeline`, so every cross-validation fold, the Model Showdown and the tuning search learn their own caps. It reproduces the old scipy `winsorize` exactly when fitted on all rows (checked: maximum difference 0.0). The target is no longer clipped.
 
 **How it was measured.** `analysis/leak_check.py` scores four versions on the same splits:
 
@@ -173,7 +173,7 @@ Random Forests resist overfitting even with many/deep trees, because each tree t
 | C. Clipped on all rows, target not clipped | 0.9604 | 1.151 | 0.9012 | 2.127 |
 | D. New: clipped per training split, target not clipped | 0.9600 | 1.152 | 0.9015 | 2.131 |
 
-**How to read it.** A vs B isolates the feature leak; A vs C isolates the clipped target; D is what the app uses now.
+**How to read it.** A vs B isolates the feature leak; A vs C isolates the clipped target; D is what the project uses now.
 
 **What it means.** The feature leak was negligible (unseen-country R² +0.0001). Scoring against the true target cost a little more (R² -0.0011, average miss +0.016 years), because the clipped rows are the lowest life expectancies, which the model already over-predicts. Overall the headline numbers stand: 0.962 → 0.960 on a random split, 0.902 → 0.901 on unseen countries. The earlier conclusions did not depend on the leak; now they are measured without it.
 
@@ -183,81 +183,36 @@ Random Forests resist overfitting even with many/deep trees, because each tree t
 
 `.isnull()` only catches explicit `NaN` values, missing real-world missingness encoded as a placeholder (e.g. a literal `0` standing in for "not reported"). Left untreated, a model trains on that placeholder as if it were a true, verified value. **Finding:** several columns show 0% missing by a naive `.isnull()` check but a substantial rate once implicit nulls are correctly identified — BMI (49.4%), Infant Deaths (28.6%), and Under-Five Deaths (26.5%) — all of which drop to 0% only after the pipeline's interpolation/imputation step. The true data-quality picture was invisible until this step ran.
 
-## Using the Dashboard
-
-Sidebar filters — Year range, Country status (Developed/Developing), and Countries — narrow every chart on the page at once. The Countries list only offers countries matching the currently-selected status, so the two filters can't contradict each other.
-
-**What each chart shows:**
-
-- **Life Expectancy Over Time** — average life expectancy by year, split by Developed vs. Developing status. Use this to see the gap between the two groups and whether it's narrowing.
-- **Country Rankings** — top/bottom N countries by mean or median life expectancy, within the current filters.
-- **What Drives the Model's Predictions** — the Random Forest's global feature importances, shown as a bar chart for quick scanning.
-- **Correlation Between Features** — a heatmap of pairwise correlations across all numeric columns. Useful for sanity-checking the model's feature importances against raw correlation, and for spotting collinearity.
-- **Distribution of Life Expectancy** — a histogram with a marginal box plot, split by status, showing the overall shape and spread of the target variable.
-
-## Using the Predict Page and Interpreting SHAP
-
-Enter values via 7 sliders (bounded/rate-style indicators like Adult Mortality and immunization percentages) and 5 direct-entry fields (Alcohol, expenditure, Income Composition, Schooling). A 13th feature, Measles, feeds the model at its dataset median but has no visible control. An expandable glossary defines every indicator in plain English.
-
-**Start from a real country (added 2026-11-11):** a box at the top of the page lets a visitor pick a country and a year and click **Fill in these values**. The controls then show that country-year's values from the cleaned data, and a green line states the recorded life expectancy. From there the visitor can change any input to ask a what-if question. **Reset to typical values** puts every control back to the all-country median. Three things to know:
-
-- With no inputs changed, the result compares the model's estimate with the recorded figure. A close match is expected, because the model saw most country-years in training; the page says so and points to Diagnostics → Unseen Countries.
-- With inputs changed, the result shows the estimate with the changes, the difference from the model's estimate for the country as recorded, and a table of what was changed. A caption states that this shows how the model's estimate moves, not what would happen in that country.
-- "Recorded values" come from the cleaned data, so where the original records had a gap the value is the pipeline's fill-in (interpolation or a median). The page says this in one sentence.
-
-How it works: every Streamlit control stores its current value in `st.session_state` under its `key`. The page seeds those entries with the medians on the first visit, and the two buttons run small functions (`load_country`, `reset_inputs`) that overwrite the entries before the page redraws. The controls no longer pass `value=`, because a control cannot take a starting value from both places. The country's values are also kept in `st.session_state["loaded_from"]` so the page can tell which inputs were changed. The feature only appears when the data has `Country` and `Year` columns.
-
-Clicking **Predict** returns three things, in order:
-
-1. **Predicted life expectancy**, with an uncertainty range from the spread across the Random Forest's 200 individual trees (~80% of trees fell within the stated range) — a rough indicator, not a statistically rigorous confidence interval.
-2. **Why This Prediction (SHAP)** — a bar chart specific to the values just entered. Green bars pushed this one prediction above the model's average (baseline); red bars pushed it below. This answers "why did THIS prediction come out this way," as opposed to the global importances, which answer "what matters most across ALL predictions." The two can legitimately disagree for an individual case — e.g. a country with very low Alcohol consumption might see that feature barely matter globally but weigh heavily for that specific prediction.
-3. **Overall Feature Importance** — the same global importances shown on the Dashboard, included here for direct comparison against the SHAP chart above it.
-
-**How to read a SHAP result:** the chart's title states the baseline (average prediction across training data) and the final prediction. Each bar's length is that feature's contribution, in years, toward moving from baseline to final prediction. Bars are sorted so the most influential feature for that specific case appears at the top.
-
-**Thin-data warning:** the Predict page counts how many inputs are still at their starting value (the dataset median) and shows that count under the controls. If half or more are untouched, the result is preceded by a warning, because the model treats median values as typical and the prediction drifts toward the all-country average. This comes from the hardest-countries investigation: the model's biggest miss, Somalia, had three inputs with no data that were filled with medians in exactly this way. The threshold (`THIN_DATA_SHARE = 0.5`) is a constant at the top of that block in `pages/2_Predict.py`.
-
 ## Limitations to Keep in Mind
 
 - **Correlation, not causation.** A strong predictor (e.g. Adult Mortality) reflects a statistical relationship, not a proven causal mechanism.
 - **Historical data.** The dataset ends in 2015; predictions reflect relationships from that period and may not capture more recent shifts in global health.
 - **Imputed values.** Some indicators were filled via interpolation where the original data had gaps, introducing some uncertainty into those specific country-years.
-- **Model uncertainty.** The tree-spread range on the Predict page is a rough indicator, not a rigorous confidence interval.
+- **Model uncertainty.** The tree-spread range (10th–90th percentile across the trees) is a rough indicator, not a rigorous confidence interval.
 - **Single-split vs. cross-validation.** The 0.960 single-split R² partly reflects same-country leakage; the 0.901 country-grouped R² is the more trustworthy figure for new countries. Typical error for unseen countries is about 2.1 years versus 1.2 for the random split.
-- **Dashboard filters assume WHO-style panel data.** The Country/Year/Status filters are structural, not config-driven — a genuinely different dataset shape would need its own dashboard filters, even though the cleaning pipeline and Predict page would work unchanged.
 
 ## Swapping in a New Dataset
 
-To point the app at a different, similarly-shaped WHO-style CSV:
+To point the project at a different, similarly-shaped WHO-style CSV:
 
 1. Copy `config/who_life_expectancy.yaml` to a new file
-2. Edit `dataset.source_csv`, `target_column`, `column_renames`, `winsorize_limits`, `drop_columns`, and the `predictors` list (label, description, slider vs. number, and whether to show it in the UI) to match the new CSV
+2. Edit `dataset.source_csv`, `target_column`, `column_renames`, `winsorize_limits`, `drop_columns`, and the `predictors` list (column, label and description) to match the new CSV
 3. Run `python train_model.py config/your_new_config.yaml`
 4. If the config doesn't match the CSV's actual columns, training fails immediately with a specific list of what's missing, rather than a cryptic error partway through cleaning
-5. Restart the app — the Predict page's controls, labels, and descriptions update automatically from `model/metadata.json`, with no page code to touch
+5. Rebuild the project page with `python -m site_build.build_site`
 
-## Deployment
+## Decision: Streamlit Removed
 
-**Decision (2026-11-15): Streamlit is no longer used to present this project.** The public face of the project is the static page at schirko.com/scott/life-expectancy/, generated by `site_build/build_site.py` from the saved results; it describes the analysis, not an app. The Streamlit code (`Home.py`, `pages/`) is still in the repository and still runs locally, but it is not part of the portfolio.
+**2026-11-15.** The project no longer uses Streamlit. Its public face is the static page at [schirko.com/scott/life-expectancy](https://schirko.com/scott/life-expectancy/), which explains the analysis in plain language with charts and links to the code and notebook. Keeping an interactive app meant running a server for it, and all of Scott's projects now live as static pages under schirko.com/scott. Removed in milestone 17: `Home.py`, `pages/` (Dashboard, Predict, Diagnostics), `Dockerfile`, `.dockerignore`, `.devcontainer/`, the `streamlit`, `plotly` and `shap` packages, and the UI-only settings (`input_type`, `show_in_ui`, slider ranges) in the config and model metadata.
 
-**Status (2026-11-15): retired.** The app ran on Scott's own server (a VPS managed with **Coolify**) at lifeexpectancy.intellidec.net from 2026-11-11. That address was removed on 2026-11-15, because all of Scott's projects now live under schirko.com/scott, which serves static pages. The app itself runs locally with `streamlit run Home.py`. The record below describes how the server copy was set up, kept for the history and in case it is hosted again.
+**What was lost, and where it went.** The Predict page's SHAP explanations and "start from a real country" feature have no static equivalent and are gone (see build-log rows 3, 11 and 13 for what they did). The diagnostics are still computed by `train_model.py`; their explanations live in this document and the main ones are on the project page.
 
-| Setting | Value |
-| --- | --- |
-| Source | [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor), branch `master`, through Coolify's GitHub App |
-| Build | `Dockerfile` at the top of the repository (Python 3.12, installs `requirements.txt`, starts `streamlit run Home.py`) |
-| Port | 8501 |
-| Address (retired) | `lifeexpectancy.intellidec.net` (an A record for `lifeexpectancy` points at the VPS; Coolify obtains the HTTPS certificate) |
-| Health check | `/_stcore/health`, defined in the `Dockerfile` |
-| Secrets | None. The app reads only files in the repository. |
+**Hosting history.** The app ran on Streamlit Community Cloud, then from 2026-11-11 on Scott's VPS (Coolify, built from a `Dockerfile`) at lifeexpectancy.intellidec.net. That address was retired on 2026-11-15. The code is at [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor) (named LifeExpectancyApp until 2026-11-15).
 
-While the server copy existed, updating it meant pushing to `master` and redeploying in Coolify. `.dockerignore` keeps the virtual environment, notes and editor settings out of the build.
-
-**Before 2026-11-11** the app was hosted on Streamlit Community Cloud, which redeployed on every push to `master`. That copy is to be deleted once the server copy is confirmed.
 
 ## Build Log: What, Why and How
 
-Each row is one milestone, in the order built. Add a row for every new milestone so the project stays interview-ready.
+Each row is one milestone, in the order built. Add a row for every new milestone so the project stays interview-ready. Rows 1–3, 6, 11, 13 and 14 describe the Streamlit app removed in milestone 17; they are kept as history.
 
 | Step | What | Why | How |
 | --- | --- | --- | --- |
@@ -277,11 +232,11 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 14. Move to own server | App runs on Scott's VPS at `lifeexpectancy.intellidec.net`, built by Coolify from a `Dockerfile` | Scott wanted his last app off Streamlit's hosting; an own address also suits its new role as a free tool on IntelliDec | Added `Dockerfile` and `.dockerignore`; Coolify resource with build strategy Dockerfile, port 8501, domain with HTTPS; DNS A record for the subdomain. Problems met and fixed on the way: the Dockerfile had not been pushed (build failed with "no such file"), the port defaulted to 3000, and the browser warned "not secure" until the app was running and the certificate issued |
 | 15. Portfolio page | Added a generated static project page at schirko.com/scott/life-expectancy/ and a card on the portfolio | An employer-facing front door that explains the results in plain language and links to the code and notebook, without a public github.io site | `site_build/build_site.py` + `site_template.html` (matplotlib charts, nbconvert notebook export, mistune docs); writes to `SITE_DIR` in `.env` (the Schirko `scott/` folder, served by Coolify); noindex on every page; card added to Schirko `scott/index.html` |
 | 16. Outlier-clipping leak removed | Winsorizing limits are learned from the training rows inside every split, and life expectancy is no longer clipped; the effect was measured four ways | Clipping on all rows before splitting let test rows set the caps, and clipping the target scored the model against altered answers; both had to be ruled out before trusting the scores | `FoldWinsorizer` in `data_prep.py`, used as the first step of a `Pipeline` in `train_model.py` and `tune_hyperparameters.py`; `analysis/leak_check.py` saves `model/leak_check.json`, shown on Diagnostics → Data Quality. Result: unseen-country R² 0.902 → 0.901, random split 0.962 → 0.960; findings unchanged |
+| 17. Streamlit removed | Deleted the Streamlit app (`Home.py`, `pages/`), its Docker and dev-container setup, the `streamlit`, `plotly` and `shap` packages, and the UI-only config settings | The project is presented as a static page under schirko.com/scott; an app nobody can reach is code to maintain for nothing | `git rm` of the app files; `requirements.txt` trimmed; `input_type`/`show_in_ui` removed from the config, `config_loader.py` and the model metadata; `feature_ranges` and the all-rows clipped copy removed from `train_model.py`, so `data/clean_data.csv` now holds the unclipped cleaned data; docs rewritten around the project page |
 
 **Found while building milestone 13 (not yet fixed):**
 
 - **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. Every chart that splits by status inherits this.
 - **Health expenditure stored as zero.** `Pct_Expenditure` is exactly 0 in 606 of 2,928 cleaned rows, across 181 countries (for example Canada, Australia and Austria in 2015). These are almost certainly missing values stored as zero, which the cleaning rules do not treat as missing for this column. The feature carries about 0.5% of the model's built-in importance, so the effect on predictions is small, but a visitor who loads Canada now sees a health expenditure of 0.
-- **Deprecated option.** `use_container_width`, used throughout the app, is deprecated in current Streamlit and prints a warning on every run.
 
 **Still open:** a developed vs. developing fairness check (next), test a shrinkage correction, source outside data on conflict and epidemics, automated tests, and the small fallback-median leak (countries with no data at all for an input).

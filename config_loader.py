@@ -2,12 +2,12 @@
 Config loader and schema validator for the Life Expectancy Predictor.
 
 Loads a YAML config describing one dataset's shape (column renames, null
-handling, winsorization limits, predictors, and UI hints) so the cleaning
-pipeline, training script, and Streamlit app can all work generically
-against any similarly-shaped tabular dataset -- not just the one CSV this
-app shipped with.
+handling, winsorization limits, predictors and their labels) so the
+cleaning pipeline and training script can work generically against any
+similarly-shaped tabular dataset -- not just the one CSV this project
+shipped with.
 
-To point the app at a different WHO-style CSV: copy an existing config
+To point the project at a different WHO-style CSV: copy an existing config
 file under config/, edit its values to match the new CSV's columns, and
 pass its path to train_model.py.
 """
@@ -28,8 +28,6 @@ class PredictorSpec:
     column: str
     label: str
     description: str = ""
-    input_type: str = "number"  # "slider" or "number"
-    show_in_ui: bool = True
 
 
 @dataclass
@@ -86,8 +84,6 @@ def load_config(path: str, base_dir: str | None = None) -> DatasetConfig:
                 column=p["column"],
                 label=p.get("label", p["column"]),
                 description=p.get("description", ""),
-                input_type=p.get("input_type", "number"),
-                show_in_ui=p.get("show_in_ui", True),
             )
             for p in predictors_raw
         ]
@@ -160,11 +156,6 @@ def validate_schema(config: DatasetConfig, raw_columns: list) -> list:
             problems.append(
                 f"Predictor column '{spec.column}' not found in the CSV after "
                 f"cleaning (check column_renames in the config)."
-            )
-        if spec.input_type not in ("slider", "number"):
-            problems.append(
-                f"Predictor '{spec.column}' has invalid input_type "
-                f"'{spec.input_type}' (must be 'slider' or 'number')."
             )
 
     if config.group_column and config.group_column not in renamed:
