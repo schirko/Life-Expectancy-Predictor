@@ -61,7 +61,7 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    ```
 5. Open `http://localhost:8501` in a browser.
 
-**Deployment:** since 2026-11-11 the app runs on Scott's own server (a VPS managed with Coolify) at <https://lifeexpectancy.intellidec.net>, built from the GitHub repo at [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp). See "Deployment" below.
+**Deployment:** since 2026-11-11 the app runs on Scott's own server (a VPS managed with Coolify) at <https://lifeexpectancy.intellidec.net>, built from the GitHub repo at [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor). See "Deployment" below.
 
 ## Data and Methodology
 
@@ -216,7 +216,7 @@ Since 2026-11-11 the app runs on Scott's own server, a VPS managed with **Coolif
 
 | Setting | Value |
 | --- | --- |
-| Source | [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp), branch `master`, through Coolify's GitHub App |
+| Source | [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor), branch `master`, through Coolify's GitHub App |
 | Build | `Dockerfile` at the top of the repository (Python 3.12, installs `requirements.txt`, starts `streamlit run Home.py`) |
 | Port | 8501 |
 | Address | `https://lifeexpectancy.intellidec.net` (an A record for `lifeexpectancy` points at the VPS; Coolify obtains the HTTPS certificate) |
@@ -234,7 +234,7 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | Step | What | Why | How |
 | --- | --- | --- | --- |
 | 1. Dashboard and Predict pages | Streamlit multipage app: charts of trends, correlations and rankings, plus a form that predicts life expectancy | Gives an interviewer something to click, not just a notebook | `Home.py` plus `pages/`; Plotly charts; a saved Random Forest (`rf_model.joblib`) loaded by the Predict page |
-| 2. Deployment | Public app on Streamlit Community Cloud, fed from GitHub | A live link is easier to share than a repo | Push to `master` on `schirko/LifeExpectancyApp`; the host redeploys on each push; classic personal access token (`repo` scope) for git auth |
+| 2. Deployment | Public app on Streamlit Community Cloud, fed from GitHub | A live link is easier to share than a repo | Push to `master` on `schirko/Life-Expectancy-Predictor` (named `LifeExpectancyApp` until 2026-11-15); the host redeploys on each push; classic personal access token (`repo` scope) for git auth |
 | 3. SHAP explanations | Per-prediction breakdown of which inputs pushed the estimate up or down | A single number is hard to trust without reasons | `shap.TreeExplainer` on the Random Forest, shown on the Predict page |
 | 4. Config-driven refactor | Dataset, target and predictors defined in `config/who_life_expectancy.yaml`; generic cleaning in `data_prep.py` | Lets a second dataset be swapped in without rewriting pages | `config_loader.py` validates the YAML against the CSV's columns; cleaning covers header normalization, per-country interpolation, winsorizing and column drops |
 | 5. Model comparison audit | Expandable code and notes for each of the six notebook models; overfitting explained | The student-era notebook may contain mistakes; an interviewer will probe them | Re-ran each model, corrected the claim that polynomial regression overfits past degree 3, noted the scaler fit before the split (no practical effect) |

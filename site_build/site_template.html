@@ -6,6 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+${backbar_css}
 <title>Life Expectancy Predictor</title>
 <meta name="description" content="A Random Forest model of life expectancy in ${n_countries} countries, tested honestly on countries it had never seen. Live app, code and full analysis.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -62,6 +63,7 @@ footer { margin: 64px 0 40px; padding-top: 20px; border-top: 1px solid var(--lin
 </style>
 </head>
 <body>
+${back}
 <div class="wrap">
 
 <header>
@@ -153,8 +155,6 @@ ${notebooks}
 
 <h2>More</h2>
 <p><a href="docs/APP_DOCUMENTATION.html">Full documentation</a>: methodology, how to read each diagnostic, and a what/why/how build log.</p>
-<p class="note">The code (Python, Streamlit app, training and tuning scripts) is on
-<a href="${github}">GitHub</a>. The interactive app is at <a href="${live_app}">${live_app}</a>.</p>
 
 <footer>
   <a href="../">Scott Schirkofsky</a> · Page built ${built}

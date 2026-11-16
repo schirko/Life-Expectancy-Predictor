@@ -38,7 +38,7 @@ from nbconvert import HTMLExporter  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 LIVE_APP = "https://lifeexpectancy.intellidec.net"
-GITHUB = "https://github.com/schirko/LifeExpectancyApp"
+GITHUB = "https://github.com/schirko/Life-Expectancy-Predictor"
 NOINDEX = '<meta name="robots" content="noindex, nofollow">'
 
 
@@ -74,23 +74,32 @@ NOTEBOOKS = {
 }
 DOC_PAGES = {"APP_DOCUMENTATION.md": "App documentation"}
 
+# Shared "back to portfolio" bar. The portfolio owns /scott/backbar.css; link to it,
+# never copy or restyle the .sx- classes. Absolute /scott/ paths work at any depth.
+BACKBAR_CSS = '<link rel="stylesheet" href="/scott/backbar.css">'
 BACK_BAR = (
-    '<div style="font:15px system-ui,sans-serif;padding:12px 20px;border-bottom:1px solid #ddd;'
-    'background:#f6f5f1"><a href="{href}" style="color:#2E6A4C;text-decoration:none">'
-    "&larr; Life Expectancy Predictor</a></div>"
+    '<div class="sx-backbar">'
+    '<a class="sx-back" href="/scott/">'
+    '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>'
+    " Portfolio</a>"
+    '<span class="sx-crumb">Life Expectancy Predictor</span>'
+    '<span class="sx-links"><a href="/scott/life-expectancy/#notebooks">Notebooks</a>'
+    '<a href="/scott/life-expectancy/docs/APP_DOCUMENTATION.html">Docs</a></span>'
+    "</div>"
 )
 
 DOC_PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 {noindex}
+{backbar_css}
 <title>{title} - Life Expectancy Predictor</title>
 <style>
 :root{{--bg:#f6f5f1;--ink:#1c211e;--muted:#4a524d;--line:#e2e0d8;--accent:#2E6A4C;--code:#ecebe4}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#151a17;--ink:#eceae4;--muted:#b0b8b2;--line:#34403a;--accent:#6fc79a;--code:#222b26}}}}
 body{{margin:0;background:var(--bg);color:var(--ink);font:17px/1.65 Inter,system-ui,sans-serif}}
-.bar{{font:15px system-ui,sans-serif;padding:12px 20px;border-bottom:1px solid var(--line)}}
-.bar a,a{{color:var(--accent)}}.bar a{{text-decoration:none}}
+a{{color:var(--accent)}}
 main{{max-width:860px;margin:0 auto;padding:12px 20px 60px}}
 table{{border-collapse:collapse;display:block;overflow-x:auto;margin:16px 0}}
 th,td{{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top;font-size:15px}}
@@ -98,7 +107,7 @@ th{{background:var(--code)}}
 code{{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.92em}}
 pre{{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto}}pre code{{padding:0}}
 </style></head><body>
-<div class="bar"><a href="../index.html">&larr; Life Expectancy Predictor</a></div>
+{back}
 <main>{body}</main></body></html>"""
 
 
@@ -196,8 +205,8 @@ def export_notebooks() -> str:
     for i, (fname, (title, blurb)) in enumerate(NOTEBOOKS.items(), 1):
         nb = nbformat.read(ROOT / "notebooks" / fname, as_version=4)
         html, _ = exporter.from_notebook_node(nb)
-        html = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + BACK_BAR.format(href="../index.html"), html, count=1)
-        html = html.replace("<head>", "<head>" + NOINDEX, 1)
+        html = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + BACK_BAR, html, count=1)
+        html = html.replace("<head>", "<head>" + NOINDEX + BACKBAR_CSS, 1)
         (out / (Path(fname).stem + ".html")).write_text(html, encoding="utf-8")
         items.append(
             f'  <li><a href="notebooks/{Path(fname).stem}.html"><span class="num">{i}</span>'
@@ -213,7 +222,7 @@ def export_docs() -> None:
     for fname, title in DOC_PAGES.items():
         body = md((ROOT / "docs" / fname).read_text(encoding="utf-8"))
         body = re.sub(r'href="([^"#]+)\.md(#[^"]*)?"', r'href="\1.html\2"', body)
-        page = DOC_PAGE.format(noindex=NOINDEX, title=title, body=body)
+        page = DOC_PAGE.format(noindex=NOINDEX, backbar_css=BACKBAR_CSS, back=BACK_BAR, title=title, body=body)
         (out / (Path(fname).stem + ".html")).write_text(page, encoding="utf-8")
 
 
@@ -244,12 +253,20 @@ def main() -> None:
         "live_app": LIVE_APP,
         "github": GITHUB,
         "notebooks": export_notebooks(),
+        "backbar_css": BACKBAR_CSS,
+        "back": BACK_BAR,
         "built": f"{today.strftime('%B')} {today.day}, {today.year}",
     }
     template = Template((ROOT / "site_build" / "site_template.html").read_text(encoding="utf-8"))
     (SITE_DIR / "index.html").write_text(template.substitute(values), encoding="utf-8")
     export_docs()
-    print(f"Site written to {SITE_DIR}")
+    # Safety check: every generated page must carry the shared back bar.
+    pages = [SITE_DIR / "index.html", *(SITE_DIR / "notebooks").glob("*.html"), *(SITE_DIR / "docs").glob("*.html")]
+    missing = [str(f) for f in pages if "sx-backbar" not in f.read_text(encoding="utf-8")
+               or "/scott/backbar.css" not in f.read_text(encoding="utf-8")]
+    if missing:
+        raise SystemExit("Back bar missing from: " + ", ".join(missing))
+    print(f"Site written to {SITE_DIR} ({len(pages)} pages, back bar verified)")
 
 
 if __name__ == "__main__":

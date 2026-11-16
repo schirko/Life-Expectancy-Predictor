@@ -370,4 +370,4 @@ st.markdown(
 )
 
 st.divider()
-st.caption("Source code: [github.com/schirko/LifeExpectancyApp](https://github.com/schirko/LifeExpectancyApp)")
+st.caption("Source code: [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor)")
