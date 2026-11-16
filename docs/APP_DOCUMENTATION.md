@@ -61,7 +61,7 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    ```
 5. Open `http://localhost:8501` in a browser.
 
-**Deployment:** since 2026-11-11 the app runs on Scott's own server (a VPS managed with Coolify) at <https://lifeexpectancy.intellidec.net>, built from the GitHub repo at [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor). See "Deployment" below.
+**Deployment:** the app is not hosted publicly. A server copy ran at lifeexpectancy.intellidec.net from 2026-11-11 until it was retired on 2026-11-15, when all projects moved under schirko.com/scott. The code is at the GitHub repo at [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor). See "Deployment" below.
 
 ## Data and Methodology
 
@@ -212,18 +212,18 @@ To point the app at a different, similarly-shaped WHO-style CSV:
 
 ## Deployment
 
-Since 2026-11-11 the app runs on Scott's own server, a VPS managed with **Coolify**, at <https://lifeexpectancy.intellidec.net>. It still uses the Streamlit *library* (a Python package installed on the server); it no longer depends on Streamlit's hosting service.
+**Status (2026-11-15): retired.** The app ran on Scott's own server (a VPS managed with **Coolify**) at lifeexpectancy.intellidec.net from 2026-11-11. That address was removed on 2026-11-15, because all of Scott's projects now live under schirko.com/scott, which serves static pages. The app itself runs locally with `streamlit run Home.py`. The record below describes how the server copy was set up, kept for the history and in case it is hosted again.
 
 | Setting | Value |
 | --- | --- |
 | Source | [github.com/schirko/Life-Expectancy-Predictor](https://github.com/schirko/Life-Expectancy-Predictor), branch `master`, through Coolify's GitHub App |
 | Build | `Dockerfile` at the top of the repository (Python 3.12, installs `requirements.txt`, starts `streamlit run Home.py`) |
 | Port | 8501 |
-| Address | `https://lifeexpectancy.intellidec.net` (an A record for `lifeexpectancy` points at the VPS; Coolify obtains the HTTPS certificate) |
+| Address (retired) | `lifeexpectancy.intellidec.net` (an A record for `lifeexpectancy` points at the VPS; Coolify obtains the HTTPS certificate) |
 | Health check | `/_stcore/health`, defined in the `Dockerfile` |
 | Secrets | None. The app reads only files in the repository. |
 
-To update the live app: push to `master`, then redeploy in Coolify (automatic if Coolify's auto-deploy is on for this resource). `.dockerignore` keeps the virtual environment, notes and editor settings out of the build.
+While the server copy existed, updating it meant pushing to `master` and redeploying in Coolify. `.dockerignore` keeps the virtual environment, notes and editor settings out of the build.
 
 **Before 2026-11-11** the app was hosted on Streamlit Community Cloud, which redeployed on every push to `master`. That copy is to be deleted once the server copy is confirmed.
 
@@ -255,4 +255,4 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 - **Deprecated option.** `use_container_width`, used throughout the app, is deprecated in current Streamlit and prints a warning on every run.
 
 **Still open:** test a shrinkage correction, source outside data on conflict and epidemics, a developed vs. developing fairness check, automated tests, and removing the full-dataset winsorizing leak.
-| 13. Portfolio page | Added a generated static project page at schirko.com/scott/life-expectancy/ and a card on the portfolio | An employer-facing front door that explains the results in plain language and links to the live app, code and notebook, without a public github.io site | `site_build/build_site.py` + `site_template.html` (matplotlib charts, nbconvert notebook export, mistune docs); writes to `SITE_DIR` in `.env` (the Schirko `scott/` folder, served by Coolify); noindex on every page; card added to Schirko `scott/index.html` |
+| 13. Portfolio page | Added a generated static project page at schirko.com/scott/life-expectancy/ and a card on the portfolio | An employer-facing front door that explains the results in plain language and links to the code and notebook, without a public github.io site | `site_build/build_site.py` + `site_template.html` (matplotlib charts, nbconvert notebook export, mistune docs); writes to `SITE_DIR` in `.env` (the Schirko `scott/` folder, served by Coolify); noindex on every page; card added to Schirko `scott/index.html` |

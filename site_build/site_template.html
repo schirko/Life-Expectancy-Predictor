@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 ${backbar_css}
 <title>Life Expectancy Predictor</title>
-<meta name="description" content="A Random Forest model of life expectancy in ${n_countries} countries, tested honestly on countries it had never seen. Live app, code and full analysis.">
+<meta name="description" content="A Random Forest model of life expectancy in ${n_countries} countries, tested honestly on countries it had never seen. Code, notebook and full analysis.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -73,8 +73,7 @@ ${back}
   indicators, built on ${n_rows} country-year records from ${n_countries} countries. The focus is honesty: how well does it
   do on a country it has never seen, and where does it fail?</p>
   <div class="links">
-    <a class="btn primary" href="${live_app}">Open the live app</a>
-    <a class="btn" href="#findings">Key findings</a>
+    <a class="btn primary" href="#findings">Key findings</a>
     <a class="btn" href="#notebooks">Read the analysis</a>
     <a class="btn" href="${github}">View code on GitHub</a>
   </div>
@@ -141,7 +140,7 @@ ${back}
   <li><b>Diagnosed</b> it: residuals, permutation importance, partial dependence, interval calibration, tuning, a four-model
   showdown and a hardest-countries investigation.</li>
   <li><b>Built an app.</b> Streamlit pages for exploring the data, predicting with SHAP explanations, and reading the diagnostics,
-  deployed in Docker on my own server.</li>
+  that run on your own computer.</li>
 </ol>
 <p class="note"><b>Limits.</b> The data ends in 2015 and has about 16 years per country, so it describes the past, not today.
 Some countries have thin or filled-in data. Outlier clipping was applied before the train/test split, a small leak

@@ -14,8 +14,8 @@ Where it writes: the folder named by SITE_DIR in .env (Scott's PC: the Schirko
 portfolio folder, served at schirko.com/scott/life-expectancy/). With no SITE_DIR
 it writes to a git-ignored site/ folder inside the project.
 
-The live Streamlit app is NOT built here. It runs on the VPS at
-https://lifeexpectancy.intellidec.net; this page is its static front door.
+The Streamlit app itself is NOT built here. It runs locally (streamlit run Home.py)
+and is no longer hosted publicly; this page is the project's public write-up.
 """
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ import pandas as pd  # noqa: E402
 from nbconvert import HTMLExporter  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-LIVE_APP = "https://lifeexpectancy.intellidec.net"
 GITHUB = "https://github.com/schirko/Life-Expectancy-Predictor"
 NOINDEX = '<meta name="robots" content="noindex, nofollow">'
 
@@ -250,7 +249,6 @@ def main() -> None:
         "hiv_share": f"{meta['feature_importances']['HIV_AIDS'] * 100:.0f}",
         "top_country": g["per_group_error"][0]["group"],
         "top_country_miss": f"{g['per_group_error'][0]['mean_abs_error']:.1f}",
-        "live_app": LIVE_APP,
         "github": GITHUB,
         "notebooks": export_notebooks(),
         "backbar_css": BACKBAR_CSS,
