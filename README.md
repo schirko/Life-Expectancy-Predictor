@@ -22,7 +22,8 @@ Life-Expectancy-Predictor/
 ├── train_model.py              # Trains, evaluates and saves the model + diagnostics
 ├── tune_hyperparameters.py     # Optional: country-held-out grid search (~1-3 min)
 ├── analysis/
-│   └── leak_check.py           # Optional: measures the old outlier-clipping leak
+│   ├── leak_check.py           # Optional: measures the old outlier-clipping leak
+│   └── fairness_check.py       # Developed vs developing comparison (milestone 18)
 ├── site_build/                 # Generates the static project page
 ├── notebooks/                  # The original practicum notebook
 ├── data/
@@ -47,6 +48,7 @@ pip install -r site_build/requirements-site.txt   # only to build the project pa
 python train_model.py                 # train, evaluate, save model/ and data/clean_data.csv
 python tune_hyperparameters.py        # optional
 python -m analysis.leak_check         # optional
+python -m analysis.fairness_check     # developed vs developing comparison
 python -m site_build.build_site       # build the project page
 ```
 

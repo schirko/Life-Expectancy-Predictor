@@ -32,6 +32,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import mistune  # noqa: E402
+import numpy as np  # noqa: E402
 import nbformat  # noqa: E402
 import pandas as pd  # noqa: E402
 from nbconvert import HTMLExporter  # noqa: E402
@@ -201,6 +202,32 @@ def make_charts(diag: dict) -> None:
     _save(fig, "showdown.png")
 
 
+def make_fairness_chart(fair: dict) -> None:
+    """Average miss for developed vs developing countries, overall and inside
+    the same life-expectancy bands (corrected Status labels)."""
+    r = fair["corrected_labels"]
+    labels, dev, dvg = ["All rows"], [r["groups"]["Developed"]["mae"]], [r["groups"]["Developing"]["mae"]]
+    for b in r["by_life_expectancy_band"]:
+        if b.get("Developed", {}).get("n_countries", 0) >= 5 and b.get("Developing", {}).get("n_countries", 0) >= 5:
+            labels.append(f"Life exp. {b['band']}")
+            dev.append(b["Developed"]["mae"])
+            dvg.append(b["Developing"]["mae"])
+    x = np.arange(len(labels))
+    fig, ax = plt.subplots(figsize=(8, 3.8))
+    ax.bar(x - 0.2, dev, 0.4, color=BLUE, label="Developed")
+    ax.bar(x + 0.2, dvg, 0.4, color=WARM, label="Developing")
+    for i, (a, b) in enumerate(zip(dev, dvg)):
+        ax.text(i - 0.2, a + 0.04, f"{a:.2f}", ha="center", color=INK, fontsize=9)
+        ax.text(i + 0.2, b + 0.04, f"{b:.2f}", ha="center", color=INK, fontsize=9)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Average miss, unseen countries (years)")
+    ax.set_title("Developing countries are missed by more, even like for like", loc="left", fontweight="bold")
+    ax.legend(frameon=False, labelcolor=INK)
+    _style(ax)
+    _save(fig, "fairness.png")
+
+
 # ------------------------------------------------------------ notebooks/docs
 def export_notebooks() -> str:
     out = SITE_DIR / "notebooks"
@@ -240,12 +267,15 @@ def main() -> None:
     clean = pd.read_csv(ROOT / "data" / "clean_data.csv", usecols=["Year"])
     tuning = json.loads((ROOT / "model" / "tuning_results.json").read_text(encoding="utf-8"))
     leak = json.loads((ROOT / "model" / "leak_check.json").read_text(encoding="utf-8"))
+    fair = json.loads((ROOT / "model" / "fairness_check.json").read_text(encoding="utf-8"))
+    fc = fair["corrected_labels"]
     g = diag["group_cv"]
     sd = dict(showdown(diag))
     conc = g["hard_cases"]["concentration"]
 
     SITE_DIR.mkdir(parents=True, exist_ok=True)
     make_charts(diag)
+    make_fairness_chart(fair)
 
     today = date.today()
     values = {
@@ -271,6 +301,13 @@ def main() -> None:
         "leak_old_group": f"{leak['A_old']['group_cv_r2']:.3f}",
         "leak_new_group": f"{leak['D_new']['group_cv_r2']:.3f}",
         "leak_rows": str(leak["target_rows_changed_by_old_clipping"]),
+        "fair_dev_mae": f"{fc['groups']['Developed']['mae']:.2f}",
+        "fair_dvg_mae": f"{fc['groups']['Developing']['mae']:.2f}",
+        "fair_gap": f"{fc['mae_gap_years']:.1f}",
+        "fair_ci_lo": f"{fc['mae_gap_95ci'][0]:.1f}",
+        "fair_ci_hi": f"{fc['mae_gap_95ci'][1]:.1f}",
+        "fair_cov_dev": f"{fc['groups']['Developed']['interval_coverage_pct']:.0f}",
+        "fair_cov_dvg": f"{fc['groups']['Developing']['interval_coverage_pct']:.0f}",
         "github": GITHUB,
         "notebooks": export_notebooks(),
         "backbar_css": BACKBAR_CSS,

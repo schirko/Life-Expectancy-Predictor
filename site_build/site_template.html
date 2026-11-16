@@ -109,6 +109,12 @@ ${back}
   life expectancies, too low for the highest.</li>
   <li><b>The uncertainty band is slightly optimistic.</b> An 80% interval covers ${cover_random}% of random-split rows
   but only ${cover_group}% on unseen countries.</li>
+  <li><b>Developing countries are missed by more, and it isn't just because they're harder.</b> On unseen countries the
+  model misses developed countries by ${fair_dev_mae} years and developing ones by ${fair_dvg_mae}. The gap
+  (${fair_gap} years, likely between ${fair_ci_lo} and ${fair_ci_hi}) holds even when countries with the same life expectancy
+  are compared, and the uncertainty band covers ${fair_cov_dev}% of developed rows but only ${fair_cov_dvg}% of developing
+  ones. Neither group is over- or under-predicted on average. Status is not a model input; six advanced economies
+  the source data labels "Developing" were relabelled first.</li>
   <li><b>A data leak was found and fixed, and it barely mattered.</b> Outliers had been capped using all rows before the
   train/test split, and life expectancy itself was capped (${leak_rows} low values raised). Capping is now learned from the
   training rows only. Unseen-country R&sup2; went from ${leak_old_group} to ${leak_new_group}, so the findings hold.</li>
@@ -131,6 +137,11 @@ ${back}
 </figure>
 
 <figure>
+  <img src="images/fairness.png" alt="Bar chart of average miss in years for developed and developing countries, overall and within life-expectancy bands 70 to 75 and 75 to 80; developing countries are missed by more in every group.">
+  <figcaption>Comparing countries with similar life expectancy rules out "developing countries are just more extreme".</figcaption>
+</figure>
+
+<figure>
   <img src="images/showdown.png" alt="Bar chart of R-squared on unseen countries: histogram boosting ${sd_hgb}, random forest ${sd_rf}, gradient boosting ${sd_gb}, linear regression ${sd_lin}.">
   <figcaption>Same folds, four algorithms. The data, not the algorithm, sets the ceiling.</figcaption>
 </figure>
@@ -141,7 +152,7 @@ ${back}
   capped outliers (limits learned from training rows only) and dropped near-duplicate columns. The pipeline is driven by one config file.</li>
   <li><b>Trained</b> a 200-tree Random Forest and scored it two ways: a random split and country-grouped cross-validation.</li>
   <li><b>Diagnosed</b> it: residuals, permutation importance, partial dependence, interval calibration, tuning, a four-model
-  showdown and a hardest-countries investigation.</li>
+  showdown, a hardest-countries investigation, a leak check and a developed-vs-developing fairness check.</li>
   <li><b>Published</b> this page from the saved results with one script, so every number and chart matches the
   latest training run.</li>
 </ol>

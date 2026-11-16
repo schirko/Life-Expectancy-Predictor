@@ -26,6 +26,7 @@ The pipeline is config-driven: dataset-specific knowledge (column names, cleanin
 | `train_model.py` | Trains the Random Forest, runs country-grouped cross-validation, computes diagnostics, saves model + metadata |
 | `tune_hyperparameters.py` | Optional grid search with country-held-out folds |
 | `analysis/leak_check.py` | Optional: measures how much the old all-rows outlier clipping changed the scores (milestone 16) |
+| `analysis/fairness_check.py` | Developed vs. developing comparison on unseen countries (milestone 18) |
 | `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
 | `notebooks/` | The original practicum notebook, exported to the page |
 | `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
@@ -56,6 +57,7 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    ```
    python tune_hyperparameters.py
    python -m analysis.leak_check
+   python -m analysis.fairness_check
    ```
 5. Build the project page (written to `SITE_DIR` from `.env`, the Schirko portfolio folder; without it, to a git-ignored `site/` folder):
 
@@ -179,6 +181,35 @@ Random Forests resist overfitting even with many/deep trees, because each tree t
 
 **What's next and why.** One small leak remains: a country with no data at all for an input gets the all-country median, which includes held-out countries (Somalia is the clearest case). It is a low priority. The evaluation is now clean enough for the developed-vs-developing fairness check.
 
+### Fairness Check: Developed vs. Developing (Milestone 18)
+
+**What we are looking for.** On countries the model has never seen, developing countries are missed by more years than developed ones. Is the model treating them worse, or is their life expectancy simply harder to predict (wider range, more extreme values, more gaps in the data)? Status is not a model input; it is only used here to group the results.
+
+**How it was done.** `analysis/fairness_check.py` predicts every row with a model that never saw that country (the same `GroupKFold(5)` folds and leak-free clipping as `train_model.py`), then compares the two groups four ways: average miss, bias and R² within each group; the same comparison inside matching life-expectancy bands; the 80% tree-spread interval's coverage and width; and a bootstrap over countries (2,000 resamples of whole countries) for a range on the gap. Everything runs twice: with the source data's labels, and with six advanced economies the source labels "Developing" (Canada, Finland, France, Greece, Israel, Republic of Korea) moved to "Developed". Borderline cases such as Qatar and Estonia were left as the source has them.
+
+| Labels | Group | Countries | Avg miss (yrs) | Bias (yrs) | 80% interval covers | Interval width (yrs) | Inputs filled in |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Source | Developed | 32 | 1.70 | -0.22 | 81.4% | 5.57 | 9.4% |
+| Source | Developing | 151 | 2.22 | -0.03 | 76.4% | 6.91 | 4.8% |
+| Corrected | Developed | 38 | 1.81 | -0.06 | 80.1% | 5.62 | 9.0% |
+| Corrected | Developing | 145 | 2.21 | -0.07 | 76.5% | 6.96 | 4.7% |
+
+Inside the same life-expectancy band (corrected labels): 70-75 years, developed 1.16 vs developing 1.48 (only 9 developed countries); 75-80 years, 1.64 vs 2.25.
+
+**How to read it.** "Avg miss" is the typical error in years. "Bias" is the average signed error (negative = the model predicts too high); near zero means neither group is pushed up or down overall. "Covers" is how often the 80% band holds the true value; 80% is the target. "Inputs filled in" is the share of input values that were missing in the source and had to be interpolated.
+
+**What it means.**
+
+- **The gap is real but modest.** With corrected labels, developing countries are missed by 0.40 years more (95% range 0.09 to 0.72); with the source labels the gap is 0.53 (0.23 to 0.83). Neither range includes zero.
+- **It is not just because developing countries are harder cases.** Comparing countries with the same life expectancy, the gap remains (1.48 vs 1.16, and 2.25 vs 1.64). Re-weighting developing countries to the developed mix of life expectancies does not shrink it either (2.54 years).
+- **It is not missing data.** Developed countries actually had more filled-in inputs (9.0% vs 4.7%).
+- **It is not systematic bias.** Both groups' average signed error is under a tenth of a year, so the model does not push either group up or down.
+- **The uncertainty band is too narrow for developing countries.** It holds the true value 80% of the time for developed countries, as intended, but 76.5% for developing ones, even though it is already wider.
+- **The labels mattered.** Counting the six advanced economies as developed shrinks the gap by about a quarter (0.53 → 0.40), because several of them are harder to predict than a typical developed country (the Republic of Korea is the 6th-hardest of 183 countries).
+- **R² within a group is misleading here.** Developing countries score higher (0.88 vs 0.59) only because their life expectancies spread far wider (standard deviation 8.7 vs 3.9 years); the average miss is the fair comparison.
+
+**What's next and why.** The 13 inputs describe developed countries well and developing countries less well: within the same life expectancy, the developing countries vary in ways the inputs do not capture (conflict, epidemics, how reliable the reporting is). The fix is better inputs, not a different model. A widened interval for developing countries would make the uncertainty honest in the meantime. The six-country relabelling is used only in this analysis; the source data is unchanged.
+
 ### Data Quality: Implicit Missingness
 
 `.isnull()` only catches explicit `NaN` values, missing real-world missingness encoded as a placeholder (e.g. a literal `0` standing in for "not reported"). Left untreated, a model trains on that placeholder as if it were a true, verified value. **Finding:** several columns show 0% missing by a naive `.isnull()` check but a substantial rate once implicit nulls are correctly identified — BMI (49.4%), Infant Deaths (28.6%), and Under-Five Deaths (26.5%) — all of which drop to 0% only after the pipeline's interpolation/imputation step. The true data-quality picture was invisible until this step ran.
@@ -233,10 +264,11 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 15. Portfolio page | Added a generated static project page at schirko.com/scott/life-expectancy/ and a card on the portfolio | An employer-facing front door that explains the results in plain language and links to the code and notebook, without a public github.io site | `site_build/build_site.py` + `site_template.html` (matplotlib charts, nbconvert notebook export, mistune docs); writes to `SITE_DIR` in `.env` (the Schirko `scott/` folder, served by Coolify); noindex on every page; card added to Schirko `scott/index.html` |
 | 16. Outlier-clipping leak removed | Winsorizing limits are learned from the training rows inside every split, and life expectancy is no longer clipped; the effect was measured four ways | Clipping on all rows before splitting let test rows set the caps, and clipping the target scored the model against altered answers; both had to be ruled out before trusting the scores | `FoldWinsorizer` in `data_prep.py`, used as the first step of a `Pipeline` in `train_model.py` and `tune_hyperparameters.py`; `analysis/leak_check.py` saves `model/leak_check.json`, shown on Diagnostics → Data Quality. Result: unseen-country R² 0.902 → 0.901, random split 0.962 → 0.960; findings unchanged |
 | 17. Streamlit removed | Deleted the Streamlit app (`Home.py`, `pages/`), its Docker and dev-container setup, the `streamlit`, `plotly` and `shap` packages, and the UI-only config settings | The project is presented as a static page under schirko.com/scott; an app nobody can reach is code to maintain for nothing | `git rm` of the app files; `requirements.txt` trimmed; `input_type`/`show_in_ui` removed from the config, `config_loader.py` and the model metadata; `feature_ranges` and the all-rows clipped copy removed from `train_model.py`, so `data/clean_data.csv` now holds the unclipped cleaned data; docs rewritten around the project page |
+| 18. Fairness check | Compared developed and developing countries on unseen-country predictions: average miss, bias, like-for-like by life-expectancy band, interval coverage, and a country bootstrap; with source and corrected Status labels | A model that is worse for one group of countries should say so; a portfolio project should test it, not assume it | `analysis/fairness_check.py` (GroupKFold(5), leak-free clipping) saves `model/fairness_check.json`; six advanced economies labelled "Developing" relabelled for the comparison only. Result: developing countries missed by 0.40 years more (95% range 0.09-0.72), gap holds within matching life-expectancy bands, no group bias, interval covers 76.5% vs 80.1% |
 
 **Found while building milestone 13 (not yet fixed):**
 
-- **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. Every chart that splits by status inherits this.
+- **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. The fairness check (milestone 18) relabels them for its comparison; the source data is unchanged.
 - **Health expenditure stored as zero.** `Pct_Expenditure` is exactly 0 in 606 of 2,928 cleaned rows, across 181 countries (for example Canada, Australia and Austria in 2015). These are almost certainly missing values stored as zero, which the cleaning rules do not treat as missing for this column. The feature carries about 0.5% of the model's built-in importance, so the effect on predictions is small, but a visitor who loads Canada now sees a health expenditure of 0.
 
-**Still open:** a developed vs. developing fairness check (next), test a shrinkage correction, source outside data on conflict and epidemics, automated tests, and the small fallback-median leak (countries with no data at all for an input).
+**Still open:** test a shrinkage correction, source outside data on conflict and epidemics, automated tests, and the small fallback-median leak (countries with no data at all for an input).
