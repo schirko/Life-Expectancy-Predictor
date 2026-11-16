@@ -1,6 +1,6 @@
 {
   "method": "GroupKFold(5) by Country, leak-free clipping; Status is not a model input",
-  "overall_mae": 2.131,
+  "overall_mae": 2.139,
   "relabelled_countries": [
     "Canada",
     "Finland",
@@ -16,30 +16,30 @@
         "n_rows": 512,
         "mean_life_expectancy": 79.2,
         "spread_sd_years": 3.93,
-        "mae": 1.697,
-        "bias": -0.223,
-        "r2_within_group": 0.664,
-        "interval_coverage_pct": 81.4,
-        "interval_width_years": 5.57,
-        "inputs_filled_in_pct": 9.4
+        "mae": 1.696,
+        "bias": -0.215,
+        "r2_within_group": 0.666,
+        "interval_coverage_pct": 82.0,
+        "interval_width_years": 5.5,
+        "inputs_filled_in_pct": 10.8
       },
       "Developing": {
         "n_countries": 151,
         "n_rows": 2416,
         "mean_life_expectancy": 67.1,
         "spread_sd_years": 9.01,
-        "mae": 2.223,
-        "bias": -0.033,
-        "r2_within_group": 0.885,
-        "interval_coverage_pct": 76.4,
-        "interval_width_years": 6.91,
-        "inputs_filled_in_pct": 4.8
+        "mae": 2.232,
+        "bias": -0.031,
+        "r2_within_group": 0.884,
+        "interval_coverage_pct": 76.2,
+        "interval_width_years": 6.93,
+        "inputs_filled_in_pct": 6.4
       }
     },
-    "mae_gap_years": 0.526,
+    "mae_gap_years": 0.536,
     "mae_gap_95ci": [
-      0.234,
-      0.833
+      0.244,
+      0.845
     ],
     "share_of_bootstrap_gaps_above_zero_pct": 100.0,
     "by_life_expectancy_band": [
@@ -48,7 +48,7 @@
         "Developing": {
           "n_countries": 51,
           "n_rows": 589,
-          "mae": 2.945
+          "mae": 2.987
         }
       },
       {
@@ -64,12 +64,12 @@
         "Developed": {
           "n_countries": 1,
           "n_rows": 1,
-          "mae": 1.915
+          "mae": 1.912
         },
         "Developing": {
           "n_countries": 68,
           "n_rows": 448,
-          "mae": 2.369
+          "mae": 2.371
         }
       },
       {
@@ -77,12 +77,12 @@
         "Developed": {
           "n_countries": 9,
           "n_rows": 84,
-          "mae": 1.163
+          "mae": 1.212
         },
         "Developing": {
           "n_countries": 70,
           "n_rows": 687,
-          "mae": 1.483
+          "mae": 1.477
         }
       },
       {
@@ -90,12 +90,12 @@
         "Developed": {
           "n_countries": 30,
           "n_rows": 222,
-          "mae": 1.645
+          "mae": 1.642
         },
         "Developing": {
           "n_countries": 64,
           "n_rows": 371,
-          "mae": 2.183
+          "mae": 2.181
         }
       },
       {
@@ -103,16 +103,16 @@
         "Developed": {
           "n_countries": 22,
           "n_rows": 205,
-          "mae": 1.969
+          "mae": 1.952
         },
         "Developing": {
           "n_countries": 7,
           "n_rows": 59,
-          "mae": 3.049
+          "mae": 3.088
         }
       }
     ],
-    "developing_mae_reweighted_to_developed_mix": 2.416
+    "developing_mae_reweighted_to_developed_mix": 2.429
   },
   "corrected_labels": {
     "groups": {
@@ -121,30 +121,30 @@
         "n_rows": 608,
         "mean_life_expectancy": 79.5,
         "spread_sd_years": 3.85,
-        "mae": 1.813,
-        "bias": -0.061,
-        "r2_within_group": 0.587,
-        "interval_coverage_pct": 80.1,
-        "interval_width_years": 5.62,
-        "inputs_filled_in_pct": 9.0
+        "mae": 1.814,
+        "bias": -0.05,
+        "r2_within_group": 0.588,
+        "interval_coverage_pct": 80.8,
+        "interval_width_years": 5.55,
+        "inputs_filled_in_pct": 10.5
       },
       "Developing": {
         "n_countries": 145,
         "n_rows": 2320,
         "mean_life_expectancy": 66.5,
         "spread_sd_years": 8.69,
-        "mae": 2.214,
-        "bias": -0.067,
-        "r2_within_group": 0.878,
-        "interval_coverage_pct": 76.5,
-        "interval_width_years": 6.96,
-        "inputs_filled_in_pct": 4.7
+        "mae": 2.224,
+        "bias": -0.066,
+        "r2_within_group": 0.877,
+        "interval_coverage_pct": 76.3,
+        "interval_width_years": 6.98,
+        "inputs_filled_in_pct": 6.3
       }
     },
-    "mae_gap_years": 0.401,
+    "mae_gap_years": 0.41,
     "mae_gap_95ci": [
-      0.091,
-      0.717
+      0.095,
+      0.734
     ],
     "share_of_bootstrap_gaps_above_zero_pct": 99.5,
     "by_life_expectancy_band": [
@@ -153,7 +153,7 @@
         "Developing": {
           "n_countries": 51,
           "n_rows": 589,
-          "mae": 2.945
+          "mae": 2.987
         }
       },
       {
@@ -169,12 +169,12 @@
         "Developed": {
           "n_countries": 1,
           "n_rows": 1,
-          "mae": 1.915
+          "mae": 1.912
         },
         "Developing": {
           "n_countries": 68,
           "n_rows": 448,
-          "mae": 2.369
+          "mae": 2.371
         }
       },
       {
@@ -182,12 +182,12 @@
         "Developed": {
           "n_countries": 9,
           "n_rows": 84,
-          "mae": 1.163
+          "mae": 1.212
         },
         "Developing": {
           "n_countries": 70,
           "n_rows": 687,
-          "mae": 1.483
+          "mae": 1.477
         }
       },
       {
@@ -195,12 +195,12 @@
         "Developed": {
           "n_countries": 36,
           "n_rows": 262,
-          "mae": 1.637
+          "mae": 1.631
         },
         "Developing": {
           "n_countries": 58,
           "n_rows": 331,
-          "mae": 2.255
+          "mae": 2.256
         }
       },
       {
@@ -208,15 +208,15 @@
         "Developed": {
           "n_countries": 28,
           "n_rows": 261,
-          "mae": 2.2
+          "mae": 2.192
         },
         "Developing": {
           "n_countries": 1,
           "n_rows": 3,
-          "mae": 3.166
+          "mae": 3.445
         }
       }
     ],
-    "developing_mae_reweighted_to_developed_mix": 2.54
+    "developing_mae_reweighted_to_developed_mix": 2.659
   }
 }

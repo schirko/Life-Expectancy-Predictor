@@ -1,62 +1,62 @@
 {
   "decile_bias_raw": {
     "by_true_value": [
-      -2.53,
-      0.27,
-      -0.05,
-      -0.64,
+      -2.52,
+      0.25,
+      -0.04,
+      -0.62,
       -0.16,
-      0.08,
-      0.23,
-      0.83,
-      0.71,
-      0.59
+      0.07,
+      0.21,
+      0.84,
+      0.73,
+      0.62
     ],
     "by_prediction": [
-      -0.17,
-      0.06,
-      -0.29,
+      -0.16,
+      0.08,
+      -0.31,
       0.3,
       0.21,
-      0.0,
-      -0.02,
-      -0.2,
-      -0.03,
-      -0.52
+      0.02,
+      -0.05,
+      -0.17,
+      -0.05,
+      -0.5
     ]
   },
   "method": "Nested GroupKFold(5) by Country; corrections fitted on inner out-of-fold predictions only",
   "A_raw": {
-    "mae": 2.131,
-    "r2": 0.9052,
+    "mae": 2.139,
+    "r2": 0.9047,
     "calibration_slope": 0.99,
-    "bias_lowest_10pct": -2.53,
-    "bias_highest_10pct": 0.59,
-    "bias_lowest_10pct_of_predictions": -0.18,
-    "bias_highest_10pct_of_predictions": -0.52,
-    "mae_developed": 1.813,
-    "mae_developing": 2.214
+    "bias_lowest_10pct": -2.52,
+    "bias_highest_10pct": 0.62,
+    "bias_lowest_10pct_of_predictions": -0.16,
+    "bias_highest_10pct_of_predictions": -0.5,
+    "mae_developed": 1.814,
+    "mae_developing": 2.224
   },
   "B_linear": {
-    "mae": 2.134,
-    "r2": 0.9047,
+    "mae": 2.143,
+    "r2": 0.9041,
     "calibration_slope": 0.999,
     "bias_lowest_10pct": -2.68,
-    "bias_highest_10pct": 0.74,
-    "bias_lowest_10pct_of_predictions": -0.36,
-    "bias_highest_10pct_of_predictions": -0.38,
-    "mae_developed": 1.821,
-    "mae_developing": 2.216
+    "bias_highest_10pct": 0.76,
+    "bias_lowest_10pct_of_predictions": -0.35,
+    "bias_highest_10pct_of_predictions": -0.35,
+    "mae_developed": 1.822,
+    "mae_developing": 2.227
   },
   "C_isotonic": {
-    "mae": 2.208,
-    "r2": 0.8984,
-    "calibration_slope": 0.997,
+    "mae": 2.207,
+    "r2": 0.899,
+    "calibration_slope": 0.998,
     "bias_lowest_10pct": -2.75,
-    "bias_highest_10pct": 1.04,
-    "bias_lowest_10pct_of_predictions": -0.36,
-    "bias_highest_10pct_of_predictions": -0.03,
-    "mae_developed": 1.751,
-    "mae_developing": 2.327
+    "bias_highest_10pct": 1.02,
+    "bias_lowest_10pct_of_predictions": -0.33,
+    "bias_highest_10pct_of_predictions": -0.05,
+    "mae_developed": 1.761,
+    "mae_developing": 2.323
   }
 }

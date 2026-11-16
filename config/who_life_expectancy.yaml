@@ -39,7 +39,9 @@ column_renames:
 # Values that are technically present but really mean "missing data".
 implicit_nulls:
   # A literal 0 in these columns is treated as missing rather than a true zero.
-  zero_as_null: ["Infant_Deaths", "Under-Five_Deaths"]
+  # Pct_Expenditure added 2026-11-16 (milestone 21): it is exactly 0 for every
+  # country in 2015 and for 26 countries in every year -- "not reported", not zero.
+  zero_as_null: ["Infant_Deaths", "Under-Five_Deaths", "Pct_Expenditure"]
   # Values outside [low, high] in these columns are treated as missing.
   range_as_null:
     BMI: [10, 50]

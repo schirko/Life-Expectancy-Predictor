@@ -85,36 +85,36 @@
       "description": "Number of reported measles cases per 1,000 population."
     }
   ],
-  "test_r2": 0.9600481487284176,
-  "test_mae": 1.1519590443686023,
-  "test_rmse": 1.8852899343386877,
+  "test_r2": 0.9603457807712811,
+  "test_mae": 1.147156996587033,
+  "test_rmse": 1.8782543196407535,
   "cv_method": "GroupKFold(5) by Country",
-  "cv_r2_mean": 0.9014599999999999,
-  "cv_r2_std": 0.019647758141833876,
+  "cv_r2_mean": 0.90098,
+  "cv_r2_std": 0.019469093456039498,
   "cv_r2_folds": [
-    0.9349,
-    0.9059,
-    0.9026,
+    0.9341,
+    0.9065,
+    0.9007,
     0.8858,
-    0.8781
+    0.8778
   ],
-  "cv_random_r2_mean": 0.9605133042929264,
-  "cv_random_r2_std": 0.005232916233546073,
+  "cv_random_r2_mean": 0.960414139273864,
+  "cv_random_r2_std": 0.0053187518496486084,
   "n_rows": 2928,
   "feature_importances": {
-    "HIV_AIDS": 0.5835328444543412,
-    "Income_Comp_Of_Resources": 0.1732202007603864,
-    "Adult_Mortality": 0.14477574631020285,
-    "Under-Five_Deaths": 0.023566432406692327,
-    "Schooling": 0.015391564765588846,
-    "Thinness_10-19_Years": 0.014739352490972035,
-    "Alcohol": 0.010236609904547453,
-    "Ttl_Expend": 0.00914402714394112,
-    "Polio": 0.005954832149102785,
-    "Measles": 0.005739954034294563,
-    "Pct_Expenditure": 0.0050421242624081285,
-    "Diphtheria": 0.004596876325289169,
-    "Hepatitis_B": 0.004059434992233257
+    "HIV_AIDS": 0.5835098744264587,
+    "Income_Comp_Of_Resources": 0.17305251480111275,
+    "Adult_Mortality": 0.14461842938688949,
+    "Under-Five_Deaths": 0.023509297064334224,
+    "Schooling": 0.015260487501078002,
+    "Thinness_10-19_Years": 0.014707296601825052,
+    "Alcohol": 0.010349226885662852,
+    "Ttl_Expend": 0.009124105453189006,
+    "Polio": 0.005963493586761573,
+    "Measles": 0.005737898508348859,
+    "Pct_Expenditure": 0.005618636710784171,
+    "Diphtheria": 0.004541524829448627,
+    "Hepatitis_B": 0.004007214244106746
   },
   "clipping": "learned from training rows only (FoldWinsorizer); target not clipped",
   "clip_limits_train": {
@@ -152,7 +152,7 @@
     ],
     "Pct_Expenditure": [
       null,
-      1185.412346
+      1406.51194
     ],
     "Ttl_Expend": [
       null,

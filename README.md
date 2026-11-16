@@ -5,7 +5,7 @@ health and economic indicators (2000–2015) with a Random Forest, and tests
 honestly how well it does on countries it has never seen.
 
 - Random split: R² 0.96, average miss 1.15 years
-- Countries held out entirely (GroupKFold by country): R² 0.90, average miss 2.13 years
+- Countries held out entirely (GroupKFold by country): R² 0.90, average miss 2.14 years
 
 The second number is the one to trust: a random split puts a country's other
 years in training. The full write-up, with charts, is at

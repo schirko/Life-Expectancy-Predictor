@@ -4,50 +4,50 @@
   "evaluation": {
     "A_raw": {
       "All": {
-        "coverage_pct": 77.3,
+        "coverage_pct": 77.2,
         "width_years": 6.68
       },
       "Developed": {
-        "coverage_pct": 80.1,
-        "width_years": 5.62
+        "coverage_pct": 80.8,
+        "width_years": 5.55
       },
       "Developing": {
-        "coverage_pct": 76.5,
-        "width_years": 6.96
+        "coverage_pct": 76.3,
+        "width_years": 6.98
       }
     },
     "B_one_factor": {
       "All": {
-        "coverage_pct": 79.6,
-        "width_years": 7.26
+        "coverage_pct": 79.7,
+        "width_years": 7.36
       },
       "Developed": {
-        "coverage_pct": 82.1,
+        "coverage_pct": 82.7,
         "width_years": 6.16
       },
       "Developing": {
         "coverage_pct": 78.9,
-        "width_years": 7.55
+        "width_years": 7.67
       }
     },
     "C_per_group": {
       "All": {
-        "coverage_pct": 79.7,
-        "width_years": 7.29
+        "coverage_pct": 80.1,
+        "width_years": 7.41
       },
       "Developed": {
-        "coverage_pct": 80.4,
-        "width_years": 5.88
+        "coverage_pct": 81.1,
+        "width_years": 5.81
       },
       "Developing": {
-        "coverage_pct": 79.5,
-        "width_years": 7.66
+        "coverage_pct": 79.9,
+        "width_years": 7.83
       }
     }
   },
   "factors_fitted_on_all": {
-    "all": 1.084,
+    "all": 1.1,
     "Developed": 1.0,
-    "Developing": 1.103
+    "Developing": 1.127
   }
 }
