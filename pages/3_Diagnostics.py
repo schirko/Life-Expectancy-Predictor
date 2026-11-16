@@ -501,11 +501,13 @@ for train_idx, test_idx in group_cv.split(x, y, groups=df["{grp_name}"]):
    gradient-boosting comparison to separate "model" from "data" causes.
 3. **Use the same unseen-country setup for a proper developed-vs-developing
    fairness check,** with enough rows per group to say something firm.
-4. **A caveat on this test itself:** outlier trimming (winsorizing) and the
-   fallback median fills were computed on the whole dataset before the folds
-   were made, so a small amount of information still crosses the split. Its
-   size has not been measured. Per-country interpolation only uses that
-   country's own rows, so it does not leak across countries.
+4. **Done: the outlier-trimming leak was removed and measured.** Winsorizing
+   limits are now learned from the training rows of each fold, and the target
+   is no longer trimmed. The scores barely moved; see Data Quality → "Did the
+   outlier clipping leak?". One small leak remains: a country with no data at
+   all for an input gets the all-country median, which includes held-out
+   countries. Per-country interpolation only uses that country's own rows, so
+   it does not leak across countries.
 """
         )
 
@@ -645,8 +647,9 @@ with tab_showdown:
             "algorithm, but they would have to come from outside this dataset.\n"
             "- **A proper developed-vs-developing fairness check** on the unseen-country "
             "setup, with enough countries per group to say something firm.\n"
-            "- **Remove the small winsorizing leak** (limits computed on all data before "
-            "the folds) and measure whether it changes any of these numbers."
+            "- **Done: the winsorizing leak was removed** (limits are now learned inside "
+            "each training fold) and every number on this tab was recomputed; see Data "
+            "Quality → \"Did the outlier clipping leak?\"."
         )
 
 # ---- Permutation importance ----
@@ -1083,4 +1086,76 @@ check.
             "0% missing in the raw CSV but a substantial rate once implicit nulls "
             "(values like a literal 0 standing in for missing data) are correctly "
             "identified — the true missingness was hidden until that step."
+        )
+
+
+# ---- Milestone 16: did the outlier clipping leak? ----
+LEAK_PATH = os.path.join(BASE_DIR, "model", "leak_check.json")
+with tab_quality:
+    st.divider()
+    st.subheader("Did the Outlier Clipping Leak?")
+    leak = load_json(LEAK_PATH)
+    if leak is None:
+        st.info("Run `python -m analysis.leak_check` to measure this (takes about a minute).")
+    else:
+        st.markdown("#### What We Are Looking For")
+        st.markdown(
+            "Outlier clipping (winsorizing) caps extreme values, for example the top 16% of "
+            "HIV/AIDS figures are set to the value at the 84th percentile. The original "
+            "pipeline did this **once, on all 2,928 rows, before splitting into training and "
+            "test data**. That is a data leak: the test rows helped decide where the caps go. "
+            "It also clipped the **target**, life expectancy itself, so the model was scored "
+            f"against altered answers ({leak['target_rows_changed_by_old_clipping']} rows had "
+            f"their life expectancy raised; the lowest true value, {leak['target_min_true']} "
+            f"years, was recorded as {leak['target_floor_old']}). The fix learns the caps from "
+            "the training rows only, separately in every fold, and leaves the target alone. "
+            "The question: how much did the leak flatter the scores?"
+        )
+        names = {
+            "A_old": "A. Old: clipped on all rows, target clipped",
+            "B_features_per_fold": "B. Features clipped per training split, target clipped",
+            "C_target_unclipped": "C. Clipped on all rows, target not clipped",
+            "D_new": "D. New: clipped per training split, target not clipped",
+        }
+        rows = [
+            {
+                "Version": label,
+                "R² (random split)": leak[k]["random_split_r2"],
+                "Avg miss, yrs (random split)": leak[k]["random_split_mae"],
+                "R² (unseen countries)": leak[k]["group_cv_r2"],
+                "Avg miss, yrs (unseen countries)": leak[k]["group_oof_mae"],
+            }
+            for k, label in names.items()
+        ]
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+        a, b, c, d = (leak[k] for k in names)
+        st.markdown("#### How to Read It")
+        st.markdown(
+            "Each row is the same Random Forest, trained and scored on the same splits; only "
+            "the clipping changes. **A vs B** isolates the feature leak (where the caps are "
+            "learned). **A vs C** isolates the clipped target (what the model is scored "
+            "against). **D** is what the app uses now. Higher R² and a smaller average miss "
+            "are better."
+        )
+        st.markdown("#### What It Means")
+        st.markdown(
+            f"- **The feature leak was negligible.** Learning the caps from training rows only "
+            f"changed unseen-country R² by {b['group_cv_r2'] - a['group_cv_r2']:+.4f}.\n"
+            f"- **Clipping the target mattered a little more.** Scoring against the true "
+            f"values changed unseen-country R² by {c['group_cv_r2'] - a['group_cv_r2']:+.4f} and "
+            f"the average miss by {c['group_oof_mae'] - a['group_oof_mae']:+.3f} years. The "
+            "clipped rows are the lowest life expectancies, which the model already "
+            "over-predicts, so raising them hid part of that error.\n"
+            f"- **Overall, the headline numbers stand:** R² {a['random_split_r2']:.3f} → "
+            f"{d['random_split_r2']:.3f} on a random split and {a['group_cv_r2']:.3f} → "
+            f"{d['group_cv_r2']:.3f} on unseen countries. The earlier conclusions did not depend "
+            "on the leak, and now they are measured without it."
+        )
+        st.markdown("#### What's Next and Why")
+        st.markdown(
+            "- **One small leak is left:** a country with no data at all for an input is "
+            "filled with the all-country median, which includes held-out countries. It affects "
+            "only a few countries (Somalia is the clearest case), so it is a low priority.\n"
+            "- **Next milestone: a developed-vs-developing fairness check** on the unseen-country "
+            "setup, now that the evaluation itself is leak-free."
         )

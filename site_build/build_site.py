@@ -55,14 +55,6 @@ def _read_dotenv() -> None:
 _read_dotenv()
 SITE_DIR = Path(os.getenv("SITE_DIR", "").strip() or ROOT / "site")
 
-# Model Showdown results (docs/APP_DOCUMENTATION.md, "Model Showdown"); kept here
-# because train_model.py does not save them to a JSON file.
-SHOWDOWN = [
-    ("Hist Gradient Boosting", 0.904),
-    ("Random Forest (deployed)", 0.902),
-    ("Gradient Boosting", 0.895),
-    ("Linear Regression", 0.831),
-]
 
 NOTEBOOKS = {
     "Life_Expectancy_Claude.ipynb": (
@@ -75,7 +67,13 @@ DOC_PAGES = {"APP_DOCUMENTATION.md": "App documentation"}
 
 # Shared "back to portfolio" bar. The portfolio owns /scott/backbar.css; link to it,
 # never copy or restyle the .sx- classes. Absolute /scott/ paths work at any depth.
-BACKBAR_CSS = '<link rel="stylesheet" href="/scott/backbar.css">'
+BACKBAR_CSS = (
+    '<link rel="stylesheet" href="/scott/backbar.css">\n'
+    '<link rel="icon" href="/scott/favicon.ico" sizes="32x32">\n'
+    '<link rel="icon" type="image/png" sizes="16x16" href="/scott/favicon-16.png">\n'
+    '<link rel="icon" type="image/png" sizes="32x32" href="/scott/favicon-32.png">\n'
+    '<link rel="apple-touch-icon" href="/scott/apple-touch-icon.png">'
+)  # stylesheet and favicons are owned by the portfolio
 BACK_BAR = (
     '<div class="sx-backbar">'
     '<a class="sx-back" href="/scott/">'
@@ -83,7 +81,8 @@ BACK_BAR = (
     'stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>'
     " Portfolio</a>"
     '<span class="sx-crumb">Life Expectancy Predictor</span>'
-    '<span class="sx-links"><a href="/scott/life-expectancy/#notebooks">Notebooks</a>'
+    '<span class="sx-links"><a href="/scott/life-expectancy/">Overview</a>'
+    '<a href="/scott/life-expectancy/notebooks/Life_Expectancy_Claude.html">Notebook</a>'
     '<a href="/scott/life-expectancy/docs/APP_DOCUMENTATION.html">Docs</a></span>'
     "</div>"
 )
@@ -128,6 +127,12 @@ def _style(ax):
 def _save(fig, name: str) -> None:
     fig.savefig(SITE_DIR / "images" / name, dpi=160, bbox_inches="tight", facecolor="white")
     plt.close(fig)
+
+
+def showdown(diag: dict) -> list:
+    """(model name, R² on unseen countries), best first, from diagnostics.json."""
+    rows = diag["model_showdown"]["models"]
+    return sorted(((r["model"], r["r2_mean"]) for r in rows), key=lambda t: -t[1])
 
 
 def make_charts(diag: dict) -> None:
@@ -182,8 +187,9 @@ def make_charts(diag: dict) -> None:
     _save(fig, "hardest.png")
 
     # 5. Model showdown
-    names = [n for n, _ in SHOWDOWN][::-1]
-    vals = [v for _, v in SHOWDOWN][::-1]
+    sd = showdown(diag)
+    names = [n for n, _ in sd][::-1]
+    vals = [v for _, v in sd][::-1]
     fig, ax = plt.subplots(figsize=(8, 3.4))
     ax.barh(names, vals, color=[GREEN if "deployed" in n else "#9fb8aa" for n in names])
     for i, v in enumerate(vals):
@@ -206,6 +212,8 @@ def export_notebooks() -> str:
         html, _ = exporter.from_notebook_node(nb)
         html = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + BACK_BAR, html, count=1)
         html = html.replace("<head>", "<head>" + NOINDEX + BACKBAR_CSS, 1)
+        # Let the shared bar run edge to edge: move the notebook template's page margin onto its content
+        html = html.replace("</head>", "<style>body.jp-Notebook{margin:0;padding:0}body.jp-Notebook>main{padding:10px 18px}</style></head>", 1)
         (out / (Path(fname).stem + ".html")).write_text(html, encoding="utf-8")
         items.append(
             f'  <li><a href="notebooks/{Path(fname).stem}.html"><span class="num">{i}</span>'
@@ -230,7 +238,11 @@ def main() -> None:
     meta = json.loads((ROOT / "model" / "metadata.json").read_text(encoding="utf-8"))
     diag = json.loads((ROOT / "model" / "diagnostics.json").read_text(encoding="utf-8"))
     clean = pd.read_csv(ROOT / "data" / "clean_data.csv", usecols=["Year"])
+    tuning = json.loads((ROOT / "model" / "tuning_results.json").read_text(encoding="utf-8"))
+    leak = json.loads((ROOT / "model" / "leak_check.json").read_text(encoding="utf-8"))
     g = diag["group_cv"]
+    sd = dict(showdown(diag))
+    conc = g["hard_cases"]["concentration"]
 
     SITE_DIR.mkdir(parents=True, exist_ok=True)
     make_charts(diag)
@@ -249,6 +261,16 @@ def main() -> None:
         "hiv_share": f"{meta['feature_importances']['HIV_AIDS'] * 100:.0f}",
         "top_country": g["per_group_error"][0]["group"],
         "top_country_miss": f"{g['per_group_error'][0]['mean_abs_error']:.1f}",
+        "top10_share": f"{conc['share_of_total_error_pct']:.0f}",
+        "tuned_r2": f"{tuning['best_test_r2']:.3f}",
+        "default_r2": f"{tuning['default_test_r2']:.3f}",
+        "sd_rf": f"{sd['Random Forest (deployed)']:.3f}",
+        "sd_gb": f"{sd['Gradient Boosting']:.3f}",
+        "sd_hgb": f"{sd['Hist Gradient Boosting']:.3f}",
+        "sd_lin": f"{sd['Linear Regression']:.3f}",
+        "leak_old_group": f"{leak['A_old']['group_cv_r2']:.3f}",
+        "leak_new_group": f"{leak['D_new']['group_cv_r2']:.3f}",
+        "leak_rows": str(leak["target_rows_changed_by_old_clipping"]),
         "github": GITHUB,
         "notebooks": export_notebooks(),
         "backbar_css": BACKBAR_CSS,
@@ -261,10 +283,11 @@ def main() -> None:
     # Safety check: every generated page must carry the shared back bar.
     pages = [SITE_DIR / "index.html", *(SITE_DIR / "notebooks").glob("*.html"), *(SITE_DIR / "docs").glob("*.html")]
     missing = [str(f) for f in pages if "sx-backbar" not in f.read_text(encoding="utf-8")
-               or "/scott/backbar.css" not in f.read_text(encoding="utf-8")]
+               or "/scott/backbar.css" not in f.read_text(encoding="utf-8")
+               or "/scott/favicon-32.png" not in f.read_text(encoding="utf-8")]
     if missing:
-        raise SystemExit("Back bar missing from: " + ", ".join(missing))
-    print(f"Site written to {SITE_DIR} ({len(pages)} pages, back bar verified)")
+        raise SystemExit("Back bar or favicons missing from: " + ", ".join(missing))
+    print(f"Site written to {SITE_DIR} ({len(pages)} pages, back bar and favicons verified)")
 
 
 if __name__ == "__main__":

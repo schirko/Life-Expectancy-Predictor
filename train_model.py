@@ -21,7 +21,7 @@ from sklearn.ensemble import (
     RandomForestRegressor,
 )
 from sklearn.linear_model import LinearRegression
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -32,7 +32,9 @@ from data_prep import (
     _clean_column_names,
     _fix_implicit_nulls,
     feature_ranges,
+    fold_winsorizer,
     get_model_ready_df,
+    get_unclipped_df,
     missingness_report,
 )
 
@@ -50,6 +52,16 @@ N_PDP_FEATURES = 3
 PDP_GRID_RESOLUTION = 20
 
 
+def rf_pipeline(config, n_estimators, random_state, n_jobs=None):
+    """Outlier clipping learned from the training rows, then the Random Forest.
+    Fitting the pipeline on a training split means the clip limits never see
+    the held-out rows (milestone 15: removing the winsorizing leak)."""
+    return Pipeline([
+        ("clip", fold_winsorizer(config)),
+        ("rf", RandomForestRegressor(n_estimators=n_estimators, random_state=random_state, n_jobs=n_jobs)),
+    ])
+
+
 def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits=5):
     """
     Compare random-fold CV against group-fold CV (whole entities held out),
@@ -65,9 +77,7 @@ def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits
     groups = df[group_col].values
 
     def make_model():
-        return RandomForestRegressor(
-            n_estimators=n_estimators, random_state=random_state, n_jobs=-1
-        )
+        return rf_pipeline(config, n_estimators, random_state, n_jobs=-1)
 
     interval = {"covered": np.zeros(len(y), dtype=bool), "width": np.zeros(len(y))}
 
@@ -84,7 +94,8 @@ def compute_cv_comparison(config, df, x, y, n_estimators, random_state, n_splits
             oof[test_idx] = m.predict(x[test_idx])
             fold_r2.append(float(r2_score(y[test_idx], oof[test_idx])))
             if track_interval:
-                tree_preds = np.array([t.predict(x[test_idx]) for t in m.estimators_])
+                x_te = m.named_steps["clip"].transform(x[test_idx])
+                tree_preds = np.array([t.predict(x_te) for t in m.named_steps["rf"].estimators_])
                 lo, hi = np.percentile(tree_preds, [10, 90], axis=0)
                 interval["covered"][test_idx] = (y[test_idx] >= lo) & (y[test_idx] <= hi)
                 interval["width"][test_idx] = hi - lo
@@ -287,13 +298,16 @@ def compute_model_showdown(config, df, x, y, groups, n_estimators, random_state,
     if not group_col or group_col not in df.columns:
         return None
 
+    # Every model gets the same fold-wise outlier clipping, learned from its
+    # training rows only.
     factories = {
-        "Random Forest (deployed)": lambda: RandomForestRegressor(
-            n_estimators=n_estimators, random_state=random_state, n_jobs=-1
-        ),
-        "Gradient Boosting": lambda: GradientBoostingRegressor(random_state=random_state),
-        "Hist Gradient Boosting": lambda: HistGradientBoostingRegressor(random_state=random_state),
-        "Linear Regression": lambda: make_pipeline(StandardScaler(), LinearRegression()),
+        "Random Forest (deployed)": lambda: rf_pipeline(config, n_estimators, random_state, n_jobs=-1),
+        "Gradient Boosting": lambda: make_pipeline(
+            fold_winsorizer(config), GradientBoostingRegressor(random_state=random_state)),
+        "Hist Gradient Boosting": lambda: make_pipeline(
+            fold_winsorizer(config), HistGradientBoostingRegressor(random_state=random_state)),
+        "Linear Regression": lambda: make_pipeline(
+            fold_winsorizer(config), StandardScaler(), LinearRegression()),
     }
     lo_cut, hi_cut = np.quantile(y, [0.10, 0.90])
     n_top = max(1, int(round(len(set(groups)) * 0.10)))
@@ -365,8 +379,15 @@ def main():
     print("Schema validation passed.")
 
     print("Loading and cleaning data...")
-    df = get_model_ready_df(config)
+    # Modelling data is NOT outlier-clipped here. Clipping is learned inside
+    # each training split (rf_pipeline / FoldWinsorizer), so held-out rows never
+    # shape the clip limits, and the target keeps its true recorded values.
+    df = get_unclipped_df(config)
     df = df.dropna(subset=config.predictor_columns + [config.target_column])
+    # Descriptive copy (clipped using all rows) for the Dashboard and the
+    # Predict page's slider ranges; not used for any score.
+    df_desc = get_model_ready_df(config)
+    df_desc = df_desc.dropna(subset=config.predictor_columns + [config.target_column])
     print(f"Model-ready rows: {len(df)}")
 
     x = df[config.predictor_columns].values
@@ -377,12 +398,17 @@ def main():
     random_state = mp.get("random_state", 42)
     n_estimators = mp.get("n_estimators", 200)
 
-    x_train, x_test, y_train, y_test = train_test_split(
+    x_train_raw, x_test_raw, y_train, y_test = train_test_split(
         x, y, test_size=test_size, random_state=random_state
     )
 
-    model = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
-    model.fit(x_train, y_train)
+    # Learn the clip limits from the training rows only, then clip both sets.
+    pipe = rf_pipeline(config, n_estimators, random_state)
+    pipe.fit(x_train_raw, y_train)
+    clipper = pipe.named_steps["clip"]
+    model = pipe.named_steps["rf"]  # the saved model; the app clips nothing, as before
+    x_train = clipper.transform(x_train_raw)
+    x_test = clipper.transform(x_test_raw)
 
     y_pred = model.predict(x_test)
     r2 = r2_score(y_test, y_pred)
@@ -459,7 +485,13 @@ def main():
         "cv_random_r2_std": cv_report["random"]["r2_std"],
         "n_rows": len(df),
         "feature_importances": importances,
-        "feature_ranges": feature_ranges(df, config),
+        "feature_ranges": feature_ranges(df_desc, config),
+        "clipping": "learned from training rows only (FoldWinsorizer); target not clipped",
+        "clip_limits_train": {
+            col: [float(lo) if np.isfinite(lo) else None, float(hi) if np.isfinite(hi) else None]
+            for col, lo, hi in zip(config.predictor_columns, clipper.lower_, clipper.upper_)
+            if np.isfinite(lo) or np.isfinite(hi)
+        },
     }
     with open(META_PATH, "w") as f:
         json.dump(metadata, f, indent=2)
@@ -543,7 +575,7 @@ def main():
         json.dump(diagnostics, f, indent=2)
     print(f"Saved diagnostics to {DIAGNOSTICS_PATH}")
 
-    df.to_csv(CLEAN_DATA_PATH, index=False)
+    df_desc.to_csv(CLEAN_DATA_PATH, index=False)
     print(f"Saved cleaned dataset to {CLEAN_DATA_PATH}")
 
 

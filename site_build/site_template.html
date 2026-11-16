@@ -98,17 +98,20 @@ ${back}
   (${miss_random} to ${miss_group} years). The lower number is the one to trust.</li>
   <li><b>Three inputs do most of the work.</b> HIV/AIDS deaths, adult mortality and the income-composition index lead by
   permutation importance (the drop in accuracy when an input is scrambled), which agrees with the model's built-in ranking.</li>
-  <li><b>Tuning didn't help.</b> A 36-setting grid search scored with country-held-out folds ended at R&sup2; 0.904,
-  the same as the defaults (0.905). Judged by random folds, the same search picks a different winner, another effect of
-  the leak.</li>
+  <li><b>Tuning didn't help.</b> A 36-setting grid search scored with country-held-out folds ended at R&sup2; ${tuned_r2},
+  essentially the same as the defaults (${default_r2}). Judged by random folds, the same search picks a different winner, another effect of
+  same-country overlap.</li>
   <li><b>The algorithm isn't the bottleneck.</b> Gradient boosting, histogram boosting and linear regression score
-  0.895, 0.904 and 0.831 on the same unseen countries. The three tree models are effectively tied, so the
+  ${sd_gb}, ${sd_hgb} and ${sd_lin} on the same unseen countries. The three tree models are effectively tied, so the
   Random Forest stays (it also supports SHAP explanations).</li>
   <li><b>A few countries are very hard.</b> ${top_country} is missed by ${top_country_miss} years. The worst 10% of
-  countries carry 22% of all error, and every model pulls the extremes toward the middle: too high for the lowest
+  countries carry ${top10_share}% of all error, and every model pulls the extremes toward the middle: too high for the lowest
   life expectancies, too low for the highest.</li>
   <li><b>The uncertainty band is slightly optimistic.</b> An 80% interval covers ${cover_random}% of random-split rows
   but only ${cover_group}% on unseen countries.</li>
+  <li><b>A data leak was found and fixed, and it barely mattered.</b> Outliers had been capped using all rows before the
+  train/test split, and life expectancy itself was capped (${leak_rows} low values raised). Capping is now learned from the
+  training rows only. Unseen-country R&sup2; went from ${leak_old_group} to ${leak_new_group}, so the findings hold.</li>
 </ul>
 
 <div class="pair">
@@ -128,23 +131,22 @@ ${back}
 </figure>
 
 <figure>
-  <img src="images/showdown.png" alt="Bar chart of R-squared on unseen countries: histogram boosting 0.904, random forest 0.902, gradient boosting 0.895, linear regression 0.831.">
+  <img src="images/showdown.png" alt="Bar chart of R-squared on unseen countries: histogram boosting ${sd_hgb}, random forest ${sd_rf}, gradient boosting ${sd_gb}, linear regression ${sd_lin}.">
   <figcaption>Same folds, four algorithms. The data, not the algorithm, sets the ceiling.</figcaption>
 </figure>
 
 <h2>How it was done</h2>
 <ol class="steps">
   <li><b>Cleaned</b> the WHO data: normalized headers, treated impossible zeros as missing, filled gaps by country over time,
-  winsorized outliers and dropped near-duplicate columns. The pipeline is driven by one config file.</li>
+  capped outliers (limits learned from training rows only) and dropped near-duplicate columns. The pipeline is driven by one config file.</li>
   <li><b>Trained</b> a 200-tree Random Forest and scored it two ways: a random split and country-grouped cross-validation.</li>
   <li><b>Diagnosed</b> it: residuals, permutation importance, partial dependence, interval calibration, tuning, a four-model
   showdown and a hardest-countries investigation.</li>
-  <li><b>Built an app.</b> Streamlit pages for exploring the data, predicting with SHAP explanations, and reading the diagnostics,
-  that run on your own computer.</li>
+  <li><b>Published</b> this page from the saved results with one script, so every number and chart matches the
+  latest training run.</li>
 </ol>
 <p class="note"><b>Limits.</b> The data ends in 2015 and has about 16 years per country, so it describes the past, not today.
-Some countries have thin or filled-in data. Outlier clipping was applied before the train/test split, a small leak
-noted in the documentation. The model finds associations, not causes, and shouldn't be used to make decisions about people.</p>
+Some countries have thin or filled-in data; a country with no data at all for an input gets the all-country median. The model finds associations, not causes, and shouldn't be used to make decisions about people.</p>
 
 <h2 id="notebooks">The analysis, step by step</h2>
 <p class="note">The notebook shows the code and its results from the start of the project.</p>

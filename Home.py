@@ -117,7 +117,8 @@ st.markdown(
    falling back to country and then global medians where interpolation
    wasn't possible
 3. **Winsorized** outliers on a per-feature basis to reduce their influence
-   on the trained model
+   on the trained model (the limits are learned from the training rows only,
+   and life expectancy itself is never clipped; see Diagnostics → Data Quality)
 4. **Compared five modeling approaches** (see table below) and selected
    Random Forest for its strong, well-generalizing performance
 """

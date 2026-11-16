@@ -15,6 +15,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.stats.mstats import winsorize
+from sklearn.base import BaseEstimator, TransformerMixin
 
 from config_loader import DatasetConfig
 
@@ -87,9 +88,14 @@ def load_and_clean(config: DatasetConfig) -> pd.DataFrame:
 
 
 def winsorize_df(df: pd.DataFrame, config: DatasetConfig) -> pd.DataFrame:
-    """Apply configured Winsorization limits to numeric feature columns."""
+    """Apply configured Winsorization limits to numeric feature columns, using
+    ALL rows. Only for describing the data (Dashboard, slider ranges): model
+    evaluation clips inside each training split instead (see FoldWinsorizer).
+    The target is never clipped, so it always shows the true recorded value."""
     df = df.copy()
     for col, bounds in config.winsorize_limits.items():
+        if col == config.target_column:
+            continue
         if col in df.columns:
             lo, hi = bounds
             df[col] = winsorize(df[col].to_numpy(), limits=(lo, hi))
@@ -97,12 +103,66 @@ def winsorize_df(df: pd.DataFrame, config: DatasetConfig) -> pd.DataFrame:
 
 
 def get_model_ready_df(config: DatasetConfig) -> pd.DataFrame:
-    """Full pipeline: clean -> winsorize -> drop configured columns."""
+    """Clean -> winsorize (all rows) -> drop configured columns.
+    Descriptive version for the Dashboard and slider ranges. For training and
+    evaluation use get_unclipped_df() plus FoldWinsorizer."""
     df = load_and_clean(config)
     df = winsorize_df(df, config)
     to_drop = [c for c in config.drop_columns if c in df.columns]
     df = df.drop(columns=to_drop)
     return df
+
+
+def get_unclipped_df(config: DatasetConfig) -> pd.DataFrame:
+    """Clean -> drop configured columns, with NO outlier clipping.
+    Used for training and evaluation: clipping is learned inside each training
+    split by FoldWinsorizer, so test rows never influence the clip limits."""
+    df = load_and_clean(config)
+    to_drop = [c for c in config.drop_columns if c in df.columns]
+    return df.drop(columns=to_drop)
+
+
+class FoldWinsorizer(BaseEstimator, TransformerMixin):
+    """Outlier clipping that learns its limits from training rows only.
+
+    The old pipeline winsorized the whole dataset before splitting, so the
+    clip limits (e.g. "the top 16% of HIV_AIDS values") were partly set by the
+    test rows: a small data leak. This transformer is the fix. fit() finds the
+    cut-off values on the training rows using the same per-column percentages
+    as the config; transform() clips any rows (train, test, or a visitor's
+    inputs) to those cut-offs. Put it first in a scikit-learn Pipeline and
+    every cross-validation fold learns its own limits from its own training
+    rows.
+
+    limits: list of (lower_pct, upper_pct), one per column of X, in order.
+    Matches scipy's winsorize(): with n rows, the lowest int(lower_pct * n)
+    values are raised to the next value, and likewise at the top.
+    """
+
+    def __init__(self, limits=None):
+        self.limits = limits
+
+    def fit(self, X, y=None):
+        X = np.asarray(X, dtype=float)
+        n = X.shape[0]
+        lows, highs = [], []
+        for j, (lo, hi) in enumerate(self.limits):
+            col = np.sort(X[:, j])
+            lows.append(col[int(lo * n)] if lo > 0 else -np.inf)
+            highs.append(col[n - 1 - int(hi * n)] if hi > 0 else np.inf)
+        self.lower_ = np.array(lows)
+        self.upper_ = np.array(highs)
+        return self
+
+    def transform(self, X):
+        return np.clip(np.asarray(X, dtype=float), self.lower_, self.upper_)
+
+
+def fold_winsorizer(config: DatasetConfig) -> FoldWinsorizer:
+    """A FoldWinsorizer set up with the config's limits for each predictor."""
+    return FoldWinsorizer(
+        limits=[tuple(config.winsorize_limits.get(c, (0.0, 0.0))) for c in config.predictor_columns]
+    )
 
 
 def feature_ranges(df: pd.DataFrame, config: DatasetConfig) -> dict:

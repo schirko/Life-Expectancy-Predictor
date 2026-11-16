@@ -36,9 +36,10 @@ from sklearn.metrics import r2_score
 import numpy as np
 from scipy.stats import spearmanr
 from sklearn.model_selection import GridSearchCV, GroupKFold, GroupShuffleSplit
+from sklearn.pipeline import Pipeline
 
 from config_loader import ConfigError, load_config, validate_schema
-from data_prep import get_model_ready_df
+from data_prep import fold_winsorizer, get_unclipped_df
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(BASE_DIR, "config", "who_life_expectancy.yaml")
@@ -64,7 +65,9 @@ def main():
         raise ConfigError(f"Config/schema validation failed: {problems}")
 
     print("Loading and cleaning data...")
-    df = get_model_ready_df(config).dropna(subset=config.predictor_columns + [config.target_column])
+    # Unclipped data: outlier clipping is learned inside each training fold by
+    # the pipeline below, so held-out countries never shape the clip limits.
+    df = get_unclipped_df(config).dropna(subset=config.predictor_columns + [config.target_column])
     x = df[config.predictor_columns].values
     y = df[config.target_column].values
 
@@ -88,11 +91,19 @@ def main():
 
     # Keep the previous (random-fold) results, if present, to compare rankings.
     random_baseline = None
+    carried_rank_comparison = None
     if os.path.exists(TUNING_RESULTS_PATH):
         with open(TUNING_RESULTS_PATH) as f:
             prev = json.load(f)
         if "cv_method" not in prev:
             random_baseline = prev
+        elif prev.get("rank_comparison"):
+            # The random-fold baseline is gone after the first grouped run; keep
+            # the comparison it produced rather than silently dropping it.
+            carried_rank_comparison = dict(prev["rank_comparison"])
+            carried_rank_comparison.setdefault(
+                "note", "Computed on an earlier run (before fold-wise outlier clipping); carried forward."
+            )
 
     n_combos = 1
     for v in PARAM_GRID.values():
@@ -101,9 +112,15 @@ def main():
     print(f"{n_combos} combinations x 5 country-held-out folds = {n_combos * 5} fits. This may take a while...")
 
     t0 = time.time()
+    def rf_pipeline(**rf_params):
+        return Pipeline([
+            ("clip", fold_winsorizer(config)),
+            ("rf", RandomForestRegressor(random_state=random_state, **rf_params)),
+        ])
+
     grid_search = GridSearchCV(
-        RandomForestRegressor(random_state=random_state),
-        PARAM_GRID,
+        rf_pipeline(),
+        {f"rf__{k}": v for k, v in PARAM_GRID.items()},
         cv=GroupKFold(n_splits=5),
         scoring="r2",
         n_jobs=-1,
@@ -111,19 +128,19 @@ def main():
     grid_search.fit(x_train, y_train, groups=g_train)
     elapsed = time.time() - t0
     print(f"Grid search finished in {elapsed:.1f}s")
+    # Pipeline parameter names carry an "rf__" prefix; strip it for the report.
+    best_params = {k.removeprefix("rf__"): v for k, v in grid_search.best_params_.items()}
 
     best_model = grid_search.best_estimator_
     best_test_r2 = r2_score(y_test, best_model.predict(x_test))
 
     # For comparison: the currently-deployed default configuration, scored
     # the same way, so the improvement (if any) is measured apples-to-apples.
-    default_model = RandomForestRegressor(
-        n_estimators=default_n_estimators, random_state=random_state
-    )
+    default_model = rf_pipeline(n_estimators=default_n_estimators)
     default_model.fit(x_train, y_train)
     default_test_r2 = r2_score(y_test, default_model.predict(x_test))
 
-    print(f"\nBest params: {grid_search.best_params_}")
+    print(f"\nBest params: {best_params}")
     print(f"Best grouped-CV R2 (train folds): {grid_search.best_score_:.4f}")
     print(f"Best params' test R2 (unseen countries): {best_test_r2:.4f}")
     print(f"Default params' test R2 ({{'n_estimators': {default_n_estimators}}}): {default_test_r2:.4f}")
@@ -136,7 +153,7 @@ def main():
         grid_search.cv_results_["std_test_score"],
     ):
         all_results.append(
-            {"params": params, "cv_r2_mean": float(mean_score), "cv_r2_std": float(std_score)}
+            {"params": {k.removeprefix("rf__"): v for k, v in params.items()}, "cv_r2_mean": float(mean_score), "cv_r2_std": float(std_score)}
         )
     all_results.sort(key=lambda r: r["cv_r2_mean"], reverse=True)
 
@@ -154,8 +171,11 @@ def main():
                 "random_cv_worst_r2": min(p[0] for p in pairs),
                 "grouped_cv_worst_r2": min(p[1] for p in pairs),
                 "spearman_rank_correlation": round(float(rho), 3),
-                "same_winner": random_baseline["best_params"] == grid_search.best_params_,
+                "same_winner": random_baseline["best_params"] == best_params,
             }
+
+    if rank_comparison is None:
+        rank_comparison = carried_rank_comparison
 
     results = {
         "cv_method": "GroupKFold(5) by " + group_col + "; test set = held-out countries",
@@ -165,7 +185,7 @@ def main():
         "param_grid": PARAM_GRID,
         "n_combinations": n_combos,
         "search_time_seconds": round(elapsed, 1),
-        "best_params": grid_search.best_params_,
+        "best_params": best_params,
         "best_cv_r2": float(grid_search.best_score_),
         "best_test_r2": float(best_test_r2),
         "default_params": {"n_estimators": default_n_estimators},
