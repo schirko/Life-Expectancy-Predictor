@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 ${backbar_css}
 <title>Life Expectancy Predictor</title>
-<meta name="description" content="A Random Forest model of life expectancy in ${n_countries} countries, tested honestly on countries it had never seen. Code, notebook and full analysis.">
+<meta name="description" content="A Random Forest model of life expectancy in ${n_countries} countries, tested honestly on countries it had never seen. Code, notebooks and full analysis.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -58,6 +58,16 @@ figcaption { color: #4a524d; font-size: 14px; padding: 8px 6px 2px; }
 .nbs .num { color: var(--accent); min-width: 24px; }
 .nbs .blurb { display: block; color: var(--muted); font-size: 15px; margin-left: 36px; }
 .note { color: var(--muted); font-size: 15.5px; }
+.deck { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin-top: 16px; }
+.deck-thumb { position: relative; flex: 0 0 300px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #1f1b18; }
+.deck-thumb img { width: 100%; height: auto; display: block; }
+.deck-thumb span { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; padding: 3px 9px; border-radius: 999px; }
+.deck > div { flex: 1 1 320px; }
+.dls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 14px; }
+.dl { display: flex; gap: 12px; align-items: center; text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.dl .ext { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: #fff; background: var(--accent); border-radius: 6px; padding: 4px 7px; min-width: 40px; text-align: center; }
+.dl small { display: block; color: var(--muted); font-size: 13px; }
+.dl:hover { border-color: var(--accent); }
 .plain { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 22px 10px; margin: 28px 0; }
 .plain h2 { margin-top: 18px; }
 .terms { width: 100%; border-collapse: collapse; font-size: 15.5px; }
@@ -199,7 +209,7 @@ reliable each country's reporting is.</p>
   <li><b>Trained</b> a 200-tree Random Forest and scored it two ways: a random split and country-grouped cross-validation.</li>
   <li><b>Diagnosed</b> it: residuals, permutation importance, partial dependence, interval calibration, tuning, a four-model
   showdown, a hardest-countries investigation, a leak check and a developed-vs-developing fairness check.</li>
-  <li><b>Tested.</b> 27 automated tests check the cleaning, the leak-free clipping, that no country is ever on both sides
+  <li><b>Tested.</b> 37 automated tests check the cleaning, the leak-free clipping, that no country is ever on both sides
   of the honest test, and that this page quotes the same numbers as the saved results. They run on every change.</li>
   <li><b>Published</b> this page from the saved results with one script, so every number and chart matches the
   latest training run.</li>
@@ -207,8 +217,10 @@ reliable each country's reporting is.</p>
 <p class="note"><b>Limits.</b> The data ends in 2015 and has about 16 years per country, so it describes the past, not today.
 Some countries have thin or filled-in data; a country with no data at all for an input gets the all-country median. The model finds associations, not causes, and shouldn't be used to make decisions about people.</p>
 
+${presentation}
+
 <h2 id="notebooks">The analysis, step by step</h2>
-<p class="note">The notebook shows the code and its results from the start of the project.</p>
+<p class="note">Seven notebooks walk through the whole project in order, written for a reader who is smart but not necessarily an analyst. Each step follows the same pattern: what we are looking for, the code and its result, how to read it, what it means, and what's next and why. The eighth is the original coursework notebook the project grew from.</p>
 <ul class="nbs">
 ${notebooks}
 </ul>

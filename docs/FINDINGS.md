@@ -1,6 +1,6 @@
 # Life Expectancy Predictor — Findings
 
-Every conclusion from the project in one place, most important first. If you are new to the project or to data science, read "Start here" and the word list first. Each finding gives what we were looking for, the key numbers, what it means, and what's next. The method behind each one is in the [project documentation](DOCUMENTATION.md) (section named in brackets), and the numbers come from the results files listed with it.
+Every conclusion from the project in one place, most important first. If you are new to the project or to data science, read "Start here" and the word list first. Each finding gives what we were looking for, the key numbers, what it means, and what's next. The method behind each one is in the [project documentation](DOCUMENTATION.md) (section named in brackets), and the numbers come from the results files listed with it. To see the reasoning unfold with the real results on screen, read the seven numbered notebooks in `notebooks/` (on the project page under "The analysis, step by step"): findings 10 and 8 are notebooks 1 and 2, finding 1 is notebook 3, finding 2 is notebook 4, findings 4 and 5 are notebook 5, findings 6 and 7 are notebook 6, and finding 3 is notebook 7.
 
 ## Start here: the project in plain English
 

@@ -38,3 +38,29 @@ def test_builds_all_pages_with_back_bar_and_noindex(root, tmp_path):
     assert "streamlit" not in index.lower()
     for img in ["two_scores.png", "importance.png", "hardest.png", "showdown.png", "fairness.png", "shrinkage.png"]:
         assert (site / "images" / img).exists(), img
+
+
+def test_presentation_section_only_when_exported(root, tmp_path, monkeypatch):
+    """The presentation section (milestone 24) appears only when exports exist in
+    presentation/, and the PDF is turned into slide images and a cover."""
+    pytest.importorskip("pymupdf")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+    from site_build import build_site as bs
+
+    pres = tmp_path / "presentation"
+    pres.mkdir()
+    monkeypatch.setattr(bs, "PRESENTATION_DIR", pres)
+    monkeypatch.setattr(bs, "SITE_DIR", tmp_path / "life-expectancy")
+    bs.SITE_DIR.mkdir()
+    assert bs.presentation_html() == ""          # nothing exported: section left out
+
+    with PdfPages(pres / "Any Name.pdf") as pdf:
+        for i in range(2):
+            fig = plt.figure(figsize=(16, 9)); fig.text(0.5, 0.5, f"slide {i + 1}"); pdf.savefig(fig); plt.close(fig)
+    html = bs.presentation_html()
+    assert (pres / "life-expectancy-story-slides.zip").exists() and (pres / "cover.png").exists()
+    assert (bs.SITE_DIR / "presentation" / "life-expectancy-story.pdf").exists()
+    assert "2-slide story" in html and 'class="dl"' in html and "deck-thumb" in html

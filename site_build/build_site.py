@@ -6,7 +6,8 @@ What it does (same recipe as the meat-prices project, decision D36 there):
   1. Redraws every chart as a PNG from the saved model results (model/*.json)
      and the cleaned data (data/clean_data.csv).
   2. Fills the numbers into site_build/site_template.html -> index.html.
-  3. Exports the notebook in notebooks/ to HTML (using the outputs saved in it).
+  3. Exports the notebooks in notebooks/ to HTML (using the outputs saved in them).
+  3b. Publishes the exported presentation from presentation/, if any (milestone 24).
   4. Turns docs/DOCUMENTATION.md into an HTML page.
   Every page gets a "back" bar and a noindex tag.
 
@@ -68,14 +69,65 @@ if SITE_DIR.name.lower() == "scott" or (SITE_DIR / "styles.css").exists():
     )
 
 
+# The seven explanatory notebooks (milestone 23), in reading order, then the original
+# practicum notebook as "where it started". Each file is committed with its outputs
+# saved, and the build exports those outputs; it never re-runs a notebook.
 NOTEBOOKS = {
+    "01_the_data.ipynb": (
+        "The data: what's in it, and its hidden problems",
+        "What a row is, what each column measures, blank values, zeros that mean \"not reported\", "
+        "impossible BMI values, and six mislabelled countries.",
+    ),
+    "02_cleaning_and_the_leak.ipynb": (
+        "Cleaning: gaps, false zeros, and outliers (and a leak)",
+        "How gaps are filled from each country's own history, how extreme values are tamed, and the "
+        "data leak in the original clipping step: real but tiny, and now fixed.",
+    ),
+    "03_the_model_and_the_honest_test.ipynb": (
+        "The model, and the honest test",
+        "The random forest, trained live. Why the random-split score (0.96) flatters, and what the "
+        "unseen-country score (0.90, about 2.1 years) really measures.",
+    ),
+    "04_what_drives_the_predictions.ipynb": (
+        "What drives the predictions",
+        "Three inputs do nearly all the work: HIV/AIDS deaths, adult mortality and the income index. "
+        "How each one moves the prediction, and why that matches what is known.",
+    ),
+    "05_where_the_model_fails.ipynb": (
+        "Where the model fails, and why it can't be patched afterwards",
+        "The hardest countries, the regression-to-the-mean pattern, and the test that shows "
+        "after-the-fact corrections make things worse.",
+    ),
+    "06_fairness_and_the_uncertainty_band.ipynb": (
+        "Is it fair to developing countries? And an honest uncertainty band",
+        "A real but modest accuracy gap (0.4 years), and an uncertainty band that was overconfident "
+        "for developing countries until it was resized per group.",
+    ),
+    "07_what_did_not_help.ipynb": (
+        "What didn't help: other algorithms, tuning, and corrections",
+        "Four algorithms raced, 36 settings tuned, corrections tested. The limit is the inputs, "
+        "not the method, and that points to the next step.",
+    ),
     "Life_Expectancy_Claude.ipynb": (
-        "The original practicum notebook",
-        "Cleaning about 2,900 WHO records, exploring them, and comparing the first regression models. "
-        "This is where the project started.",
+        "Where it started: the original practicum notebook",
+        "The graduate coursework this project grew from: first cleaning, exploration and a comparison "
+        "of regression models. Kept as history.",
     ),
 }
 DOC_PAGES = {"FINDINGS.md": "Findings", "DOCUMENTATION.md": "Project documentation"}
+
+# The presentation (milestone 24). Scott exports it from the Slides deck's Share > Export
+# menu into presentation/; the build publishes whichever files exist under these names,
+# makes the slide images and cover from the PDF, and adds a section to the page.
+# file -> (label, note)
+PRESENTATION_DIR = ROOT / "presentation"
+PRESENTATION_FILES = {
+    "life-expectancy-story.pdf": ("PDF", "For reading or printing"),
+    "life-expectancy-story.pptx": ("PowerPoint", "Editable, with speaker notes"),
+    "life-expectancy-story.html": ("Web page", "One file, works offline"),
+    "life-expectancy-story-slides.zip": ("Slide images", "Every slide as a PNG, zipped"),
+}
+SLIDE_WIDTH = 1920  # pixels, for the PNGs made from the PDF
 
 # Shared "back to portfolio" bar. The portfolio owns /scott/backbar.css; link to it,
 # never copy or restyle the .sx- classes. Absolute /scott/ paths work at any depth.
@@ -94,7 +146,7 @@ BACK_BAR = (
     " Portfolio</a>"
     '<span class="sx-crumb">Life Expectancy Predictor</span>'
     '<span class="sx-links"><a href="/scott/life-expectancy/">Overview</a>'
-    '<a href="/scott/life-expectancy/notebooks/Life_Expectancy_Claude.html">Notebook</a>'
+    '<a href="/scott/life-expectancy/#notebooks">Notebooks</a>'
     '<a href="/scott/life-expectancy/docs/FINDINGS.html">Findings</a>'
     '<a href="/scott/life-expectancy/docs/DOCUMENTATION.html">Docs</a></span>'
     "</div>"
@@ -279,6 +331,98 @@ def export_notebooks() -> str:
     return "\n".join(items)
 
 
+# ------------------------------------------------------------ presentation
+def _size(path: Path) -> str:
+    kb = path.stat().st_size / 1024
+    return f"{kb / 1024:.1f} MB" if kb >= 1024 else f"{kb:.0f} KB"
+
+
+def _presentation_source(name: str):
+    """The exported file to publish under `name`: the exact name if present, else the
+    newest file of the same type in presentation/, so the export menu's own names
+    ("Can You Predict How Long People Live.pdf") work without renaming."""
+    exact = PRESENTATION_DIR / name
+    if exact.exists():
+        return exact
+    suffix = exact.suffix.lower()
+    if suffix == ".zip":  # made by slides_from_pdf, always under the exact name
+        return None
+    matches = [f for f in PRESENTATION_DIR.glob("*") if f.is_file() and f.suffix.lower() == suffix]
+    return max(matches, key=lambda f: f.stat().st_mtime) if matches else None
+
+
+def slides_from_pdf() -> None:
+    """Make the slide-images zip and cover thumbnail from the exported PDF.
+
+    The Slides export menu offers PDF, PowerPoint and HTML but no images, so each PDF
+    page is drawn as a PNG here with PyMuPDF. Skipped when there is no PDF, or the zip
+    is already newer than it."""
+    pdf = _presentation_source("life-expectancy-story.pdf")
+    zip_path = PRESENTATION_DIR / "life-expectancy-story-slides.zip"
+    if pdf is None or (zip_path.exists() and zip_path.stat().st_mtime >= pdf.stat().st_mtime):
+        return
+    import zipfile
+    import pymupdf
+    with pymupdf.open(pdf) as doc, zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as z:
+        for i, page in enumerate(doc, start=1):
+            zoom = SLIDE_WIDTH / page.rect.width
+            z.writestr(f"life-expectancy-story-slide-{i:02d}.png", page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png"))
+            if i == 1:
+                thumb = 800 / page.rect.width
+                page.get_pixmap(matrix=pymupdf.Matrix(thumb, thumb)).save(PRESENTATION_DIR / "cover.png")
+        n = len(doc)
+    print(f"  made {zip_path.name} and cover.png from the PDF ({n} slides)")
+
+
+def presentation_html() -> str:
+    """Copy the exported presentation files to the site and return the page section.
+    Returns "" (and the section is left out) when nothing has been exported yet."""
+    if not PRESENTATION_DIR.exists():
+        return ""
+    slides_from_pdf()
+    sources = {f: _presentation_source(f) for f in PRESENTATION_FILES}
+    found = {f: v for f, v in PRESENTATION_FILES.items() if sources[f] is not None}
+    if not found:
+        print("  no exported presentation files in presentation/; section left out")
+        return ""
+    out = SITE_DIR / "presentation"
+    out.mkdir(parents=True, exist_ok=True)
+    for f in found:
+        shutil.copy2(sources[f], out / f)
+        print(f"  {sources[f].name} -> presentation/{f} ({_size(sources[f])})")
+    cover = ""
+    if (PRESENTATION_DIR / "cover.png").exists():
+        shutil.copy2(PRESENTATION_DIR / "cover.png", out / "cover.png")
+        cover = "presentation/cover.png"
+    n_slides = 16
+    if "life-expectancy-story-slides.zip" in found:
+        import zipfile
+        with zipfile.ZipFile(PRESENTATION_DIR / "life-expectancy-story-slides.zip") as z:
+            n_slides = sum(n.lower().endswith(".png") for n in z.namelist()) or n_slides
+    view = ("presentation/life-expectancy-story.html" if "life-expectancy-story.html" in found
+            else "presentation/life-expectancy-story.pdf" if "life-expectancy-story.pdf" in found else "")
+    thumb = (f'<a class="deck-thumb" href="{view or cover}"><img src="{cover}" '
+             f'alt="Cover slide: Can you predict how long people live?"><span>{n_slides} slides</span></a>') if cover else ""
+    view_btn = f'<a class="btn primary" href="{view}" target="_blank" rel="noopener">View the presentation</a>' if view else ""
+    tiles = "\n".join(
+        f'<a class="dl" href="presentation/{f}" download><span class="ext">{f.rsplit(".", 1)[1].upper()}</span>'
+        f'<span><b>{label}</b><small>{note} · {_size(sources[f])}</small></span></a>'
+        for f, (label, note) in found.items())
+    return f"""<h2 id="presentation">The story, as a presentation</h2>
+<div class="deck">
+  {thumb}
+  <div>
+    <p class="note" style="margin-top:0">The whole project told as a {n_slides}-slide story, with speaker notes: the question, the data's
+    hidden problems, the honest test, what drives the predictions, where the model fails and why, whether it is fair, what didn't help,
+    and what would. The same numbers and charts as the notebooks.</p>
+    {view_btn}
+    <div class="dls">
+{tiles}
+    </div>
+  </div>
+</div>"""
+
+
 def export_docs() -> None:
     out = SITE_DIR / "docs"
     out.mkdir(parents=True, exist_ok=True)
@@ -354,6 +498,7 @@ def main() -> None:
         "shr_mae_iso": f"{shr['C_isotonic']['mae']:.2f}",
         "github": GITHUB,
         "notebooks": export_notebooks(),
+        "presentation": presentation_html(),
         "backbar_css": BACKBAR_CSS,
         "back": BACK_BAR,
         "built": f"{today.strftime('%B')} {today.day}, {today.year}",
@@ -363,6 +508,7 @@ def main() -> None:
     export_docs()
     # Safety check: every generated page must carry the shared back bar.
     pages = [SITE_DIR / "index.html", *(SITE_DIR / "notebooks").glob("*.html"), *(SITE_DIR / "docs").glob("*.html")]
+    # (presentation/*.html is the exported deck itself, which carries no back bar; it is not a page of the site)
     missing = [str(f) for f in pages if "sx-backbar" not in f.read_text(encoding="utf-8")
                or "/scott/backbar.css" not in f.read_text(encoding="utf-8")
                or "/scott/favicon-32.png" not in f.read_text(encoding="utf-8")]

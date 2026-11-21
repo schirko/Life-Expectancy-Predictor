@@ -4,3 +4,6 @@ scikit-learn>=1.3
 scipy>=1.10
 joblib>=1.3
 pyyaml>=6.0
+
+# Site: slide images from the presentation PDF (milestone 24)
+pymupdf>=1.24

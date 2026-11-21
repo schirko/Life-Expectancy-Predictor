@@ -29,9 +29,10 @@ Life-Expectancy-Predictor/
 │   ├── fairness_check.py       # Developed vs developing comparison (milestone 18)
 │   ├── interval_calibration.py # Uncertainty band sized per group (milestone 19)
 │   └── shrinkage_check.py      # Shrinkage-correction test (milestone 20)
-├── site_build/                 # Generates the static project page
-├── tests/                      # 27 automated tests (python -m pytest)
-├── notebooks/                  # The original practicum notebook
+├── site_build/                 # Generates the static project page (+ the deck's charts)
+├── presentation/               # Exports of the story deck, published to the page
+├── tests/                      # 37 automated tests (python -m pytest)
+├── notebooks/                  # 01-07: the project explained step by step; plus the original
 ├── data/
 │   ├── Life_Expectancy_WHO_Data.csv
 │   └── clean_data.csv          # Written by train_model.py
@@ -76,12 +77,30 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-27 tests in `tests/` check the config, the cleaning (including the zero-means-missing rules), the leak-free outlier clipping, that no country is ever on both sides of the honest test, that the README, findings and documentation quote the same numbers as the saved results, and that the page build stays inside its own folder. GitHub Actions runs them on every push (badge above).
+37 tests in `tests/` check the config, the cleaning (including the zero-means-missing rules), the leak-free outlier clipping, that no country is ever on both sides of the honest test, that the README, findings and documentation quote the same numbers as the saved results, and that the page build stays inside its own folder, that every notebook on the page has saved outputs and no errors, and that the presentation section appears only when exports exist. GitHub Actions runs them on every push (badge above).
+
+## Notebooks
+
+`notebooks/01_the_data.ipynb` to `07_what_did_not_help.ipynb` walk through the
+project in order, for a reader who is smart but not necessarily an analyst: the
+data and its hidden problems, cleaning and the leak, the model and the honest
+test, what drives the predictions, where the model fails, fairness and the
+uncertainty band, and what didn't help. Every step is "what we are looking for,
+the code and its result, how to read it, what it means, what's next and why".
+They run in PyCharm with the project's `venv`; run 03 before 05 and 06. The
+committed copies include their outputs.
+
+## Presentation
+
+The whole project as a 16-slide story with speaker notes, published on the
+project page as PDF, PowerPoint, a web page and slide images. The deck is built
+from the notebooks; its charts come from `python -m site_build.presentation_charts`.
+`presentation/README.md` explains the export step.
 
 ## Project page
 
 `python -m site_build.build_site` redraws the charts from the saved results,
-fills in the numbers, exports the notebook and `docs/DOCUMENTATION.md`, and
+fills in the numbers, exports the eight notebooks and the docs, and
 writes the page to `SITE_DIR` from `.env` (copy `.env.example`; on Scott's PC
 this is the Schirko portfolio folder served at schirko.com/scott/life-expectancy/).
 Without `SITE_DIR` it writes to a git-ignored `site/` folder. After building,

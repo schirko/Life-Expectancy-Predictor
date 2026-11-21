@@ -12,7 +12,7 @@ The project has three parts:
 
 - **Training and evaluation** (`train_model.py`): cleans the data, trains the Random Forest, scores it on a random split and on countries held out entirely, and computes the diagnostics described below into `model/diagnostics.json`.
 - **Optional analyses** (`tune_hyperparameters.py`, `analysis/leak_check.py`): a country-held-out grid search, and the outlier-clipping leak check from milestone 16.
-- **The project page** (`site_build/`): redraws the charts from the saved results, fills in the numbers, exports the original notebook and this document, and writes the page into the portfolio folder.
+- **The project page** (`site_build/`): redraws the charts from the saved results, fills in the numbers, exports the eight notebooks and this document, and writes the page into the portfolio folder.
 
 The project started as a graduate data-science coursework notebook (cleaning, EDA, and several model types compared, in `notebooks/`).
 
@@ -33,7 +33,9 @@ The pipeline is config-driven: dataset-specific knowledge (column names, cleanin
 | `analysis/shrinkage_check.py` | Tests whether a recalibration step can undo the pull toward the middle (milestone 20) |
 | `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
 | `tests/` | 27 automated tests (`python -m pytest`), also run by GitHub Actions on every push (milestone 22) |
-| `notebooks/` | The original practicum notebook, exported to the page |
+| `notebooks/` | Seven explanatory notebooks (milestone 23) plus the original practicum notebook, all exported to the page |
+| `presentation/` | Exports of the story deck (milestone 24), published to the page; see its README |
+| `docs/presentation_charts/` | The deck's charts, drawn by `site_build/presentation_charts.py` |
 | `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
 
 Because the Python code contains no dataset-specific logic, swapping in a similarly shaped WHO-style CSV only requires writing a new config file and re-running training — see "Swapping in a New Dataset".
@@ -337,6 +339,53 @@ To point the project at a different, similarly-shaped WHO-style CSV:
 
 **What's next and why.** If a new analysis is added, add its results file to `test_results_and_docs.py` and one check that its documented numbers match.
 
+## Explanatory Notebooks (Milestone 23)
+
+**What.** Seven Jupyter notebooks in `notebooks/`, numbered 01–07, that walk a reader through the whole project in order, plus the original practicum notebook kept as "where it started". All eight are exported to the project page.
+
+**Why.** The project page and the findings give the conclusions; the code gives the mechanics. Neither shows the reasoning step by step with the actual results on screen. The notebooks do, for a reader who is smart but not necessarily an analyst. They are also the material the presentation (milestone 24) is drawn from, so the slides and the notebooks always agree.
+
+**How.** Every step in every notebook follows the same pattern:
+
+1. **What we are looking for**: the question the step answers.
+2. **The code and its result**: the project's own functions (`data_prep`, `train_model`, the saved `model/*.json` results), so the notebooks reproduce the published numbers rather than restating them.
+3. **How to read it**: what the table or chart shows.
+4. **What it means**: the conclusion, in plain English.
+5. **What's next and why**: how this leads to the next step.
+
+| Notebook | Covers | Reproduces |
+|---|---|---|
+| `01_the_data` | Rows and columns, blanks, false zeros, impossible BMI, six mislabelled countries | Notebook-1 counts: 2,928 rows, 183 countries, 606 health-spending zeros, 1,446 bad BMI |
+| `02_cleaning_and_the_leak` | Hidden gaps made real, three-tier gap filling, winsorizing, the clipping leak and its fix | `data_prep` functions; `model/leak_check.json` (old vs new scores) |
+| `03_the_model_and_the_honest_test` | The pipeline, random-split vs unseen-country test, trained live and matched to `metadata.json` | R² 0.960 / 1.15 yrs and R² 0.901 / 2.14 yrs; writes `notebooks/oof_predictions.csv` for notebooks 5 and 6 |
+| `04_what_drives_the_predictions` | Permutation importance; hand-computed partial dependence for the top three inputs | HIV/AIDS 0.26, adult mortality 0.24, income index 0.19 |
+| `05_where_the_model_fails` | Error concentration, hardest countries, regression to the mean by truth vs by prediction, shrinkage corrections | `model/shrinkage_check.json`; worst 10% carry 22% of error |
+| `06_fairness_and_the_uncertainty_band` | Relabelling, bootstrap of the gap, like-for-like bands, live tree-spread band coverage, per-group stretch | `model/fairness_check.json`, `model/interval_calibration.json` |
+| `07_what_did_not_help` | Four algorithms raced live, shared hard countries, tuning results, the "inputs are the limit" conclusion | `model/tuning_results.json`; the model showdown |
+
+**Running them.** In PyCharm, open any notebook and run all cells with the project's `venv` as the kernel; they find the project folder whether the working directory is `notebooks/` or the project root. Run 03 before 05 and 06 (it writes the out-of-fold predictions they read). The committed copies already contain their outputs; `python -m site_build.build_site` exports those outputs and never re-runs a notebook. `tests/test_notebooks.py` checks that every notebook listed for the page exists, has saved outputs, and has no error outputs.
+
+**Two things learned while writing them.**
+
+- scikit-learn's `PartialDependenceDisplay` ignores its `percentiles` setting for inputs with fewer than 100 distinct values, so the HIV/AIDS curve ran out to 50 deaths per 1,000 where there is almost no data. Notebook 4 computes partial dependence by hand on the middle 88% of each input instead.
+- The gap-filling step's "draw a line between neighbouring years" never actually interpolates in this dataset: every gap turned out to be at the start or end of a country's run, so the nearest known value is carried across. The notebook says so, rather than describing the ideal case.
+
+## The Presentation (Milestone 24)
+
+**What.** A 16-slide story deck, "Can You Predict How Long People Live?", with speaker notes, built after every other milestone so that every figure in it is final. It is published on the project page in four formats: PDF, PowerPoint (editable, with the notes), a single-file web page, and a zip of slide images.
+
+**Why.** Business audiences want the analysis told as a story, not only notebooks and charts, and an employer should be able to open it however they work. The speaker notes are the interview walkthrough script that was on the backlog: read in order they are a twelve-minute talk, and each one says what to make of the slide rather than reading it out.
+
+**How.**
+
+- **The slides** run: the question → the data's hidden problems → the 2015 zeros → the honest test → two scores → what drives the predictions → the HIV cliff → the hardest countries → regression to the mean and why it can't be patched → fairness → the uncertainty band → what didn't help → the verdict → what would help → how it was built. Each slide names the notebook it comes from in its footer.
+- **The charts** are drawn by `site_build/presentation_charts.py` into `docs/presentation_charts/`, from the same saved results and `notebooks/oof_predictions.csv` as the notebooks, in the deck's palette. The HIV curve is computed by hand on the middle 88% of the data exactly as notebook 4 does, because the saved scikit-learn curve runs far past where the data is (see milestone 23).
+- **The deck itself** is a Claude Slides deck. Scott exports each format once from its Share → Export menu into `presentation/` (names in `presentation/README.md`; the export's own names are fine, the build picks the newest file of each type).
+- **The build** (`site_build/build_site.py`, `presentation_html`) copies whichever exports exist to `scott/life-expectancy/presentation/`, draws every PDF page as a 1920-pixel PNG with PyMuPDF (the export menu has no image option), zips them, saves the first as the cover thumbnail, and adds "The story, as a presentation" to the page with a View button and a download tile per format with its file size. With nothing exported, the section is left out and the page builds as before. `tests/test_site_build.py` covers both cases.
+- **The portfolio card** is owned by the portfolio project; the suggested "Presentation" button text was given to Scott to pass on, not edited here.
+
+**Keeping it current.** After a retrain: `python -m site_build.presentation_charts`, update the deck's images and numbers, re-export, rebuild.
+
 ## Publishing Rules (Ownership)
 
 **Standing rule (2026-11-16).** This project writes only inside its own folder in the Schirko portfolio, `scott/life-expectancy/` (served at schirko.com/scott/life-expectancy/), plus its card screenshot in `scott/images/screenshots/`, which is added by hand. The portfolio project owns `scott/index.html` and `scott/styles.css`, and this project never writes them. If the Life Expectancy card on the portfolio needs changing, the new text is handed to the portfolio project, which makes the change.
@@ -382,10 +431,12 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 20. Shrinkage-correction test | Measured the pull toward the middle by true value and by prediction, and tested linear and isotonic recalibration with nested country cross-validation | Before "fixing" a bias, check it is one; an interviewer will ask whether the over-prediction of low life expectancies can be corrected | `analysis/shrinkage_check.py` saves `model/shrinkage_check.json`. Result: calibration slope 0.99, errors by prediction within about 0.5 years, so the pattern is regression to the mean; corrections raised the average miss (2.131 → 2.134 linear, 2.208 isotonic); no model change |
 | 21. Health-expenditure zeros fixed | `Pct_Expenditure` added to the zero-means-missing rule; every script re-run and every number in the docs, findings and project page updated | 606 rows (every country in 2015, 26 countries in every year) reported 0% health spending, which is "not reported", not zero; the model should not learn from values known to be wrong | One line in `config/who_life_expectancy.yaml` (`zero_as_null`). Result: unseen-country R² 0.9015 → 0.9010, average miss 2.131 → 2.139 years, fairness gap 0.40 → 0.41; no conclusion changed |
 | 22. Automated tests | 27 `pytest` tests covering the config, cleaning, leak-free clipping, the honest test, results-vs-docs consistency and the page build; GitHub Actions runs them on every push | Shows the pipeline still does what the documentation says after any change, and lets an employer see it pass | `tests/`, `pytest.ini`, `requirements-dev.txt`, `.github/workflows/tests.yml`. Checked against a deliberate mistake (health-expenditure rule removed): the guarding tests failed as they should. 27 passed in about 10 seconds |
+| 23. Explanatory notebooks | Seven numbered notebooks that walk through the data, cleaning, the honest test, drivers, failures, fairness and what didn't help, each step as "what we are looking for / code / how to read it / what it means / what's next"; the original notebook kept as history | The conclusions were documented but the reasoning was not visible step by step with real results; employers and non-analysts need to see it, and the presentation needs material that matches the numbers exactly | `notebooks/01_*.ipynb` to `07_*.ipynb`, executed and committed with outputs; `site_build/build_site.py` `NOTEBOOKS` lists all eight with blurbs and the back bar's "Notebook" became "Notebooks"; `tests/test_notebooks.py`; notebooks 3, 4, 6 and 7 retrain live and match the saved results |
+| 24. Presentation | A 16-slide story deck with speaker notes, published on the page as PDF, PowerPoint, web page and slide images | Business audiences want the story, not only notebooks; the speaker notes are the interview walkthrough script; built last so every figure is final | Claude Slides deck; `site_build/presentation_charts.py` draws its charts from the saved results; `presentation/README.md` says how to export; `build_site.presentation_html` publishes the exports, makes slide PNGs and a cover from the PDF with PyMuPDF, and adds the page section only when exports exist; `pymupdf` in `requirements.txt`; test added (37 tests) |
 
 **Found while building milestone 13:**
 
 - **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. The fairness check (milestone 18) relabels them for its comparison; the source data is unchanged.
 - **Health expenditure stored as zero.** Fixed in milestone 21: `Pct_Expenditure` was exactly 0 in 606 of 2,928 rows (every country in 2015, and 26 countries in every year). A 0 in that column is now treated as missing; see "Health-Expenditure Zeros Fixed".
 
-**Still open:** source outside data on conflict and epidemics, an interview walkthrough script, and the small fallback-median leak (countries with no data at all for an input).
+**Still open:** outside data on conflict and epidemics (the project's recommended next step), and the small fallback-median leak (countries with no data at all for an input). The interview walkthrough script is done: it is the deck's speaker notes.
