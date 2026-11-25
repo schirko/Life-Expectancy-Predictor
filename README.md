@@ -31,8 +31,9 @@ Life-Expectancy-Predictor/
 │   └── shrinkage_check.py      # Shrinkage-correction test (milestone 20)
 ├── site_build/                 # Generates the static project page (+ the deck's charts)
 ├── presentation/               # Exports of the story deck, published to the page
-├── tests/                      # 37 automated tests (python -m pytest)
-├── notebooks/                  # 01-07: the project explained step by step; plus the original
+├── tests/                      # 40 automated tests (python -m pytest)
+├── notebooks/                  # 01-08: the project explained step by step; plus the original
+├── data/external/              # Outside data (UCDP conflict, EM-DAT epidemics) for the milestone-25 test
 ├── data/
 │   ├── Life_Expectancy_WHO_Data.csv
 │   └── clean_data.csv          # Written by train_model.py
@@ -60,6 +61,8 @@ python -m analysis.leak_check         # optional
 python -m analysis.fairness_check     # developed vs developing comparison
 python -m analysis.interval_calibration   # size the uncertainty band per group
 python -m analysis.shrinkage_check    # can recalibration undo the pull toward the middle?
+python -m analysis.external_data      # join UCDP conflict + EM-DAT epidemic data to the WHO country-years
+python -m analysis.outside_data_check # does outside data help on unseen countries? (no)
 python -m site_build.build_site       # build the project page
 ```
 
@@ -77,15 +80,16 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-37 tests in `tests/` check the config, the cleaning (including the zero-means-missing rules), the leak-free outlier clipping, that no country is ever on both sides of the honest test, that the README, findings and documentation quote the same numbers as the saved results, and that the page build stays inside its own folder, that every notebook on the page has saved outputs and no errors, and that the presentation section appears only when exports exist. GitHub Actions runs them on every push (badge above).
+40 tests in `tests/` check the config, the cleaning (including the zero-means-missing rules), the leak-free outlier clipping, that no country is ever on both sides of the honest test, that the README, findings and documentation quote the same numbers as the saved results, and that the page build stays inside its own folder, that every notebook on the page has saved outputs and no errors, and that the presentation section appears only when exports exist. GitHub Actions runs them on every push (badge above).
 
 ## Notebooks
 
-`notebooks/01_the_data.ipynb` to `07_what_did_not_help.ipynb` walk through the
+`notebooks/01_the_data.ipynb` to `08_outside_data.ipynb` walk through the
 project in order, for a reader who is smart but not necessarily an analyst: the
 data and its hidden problems, cleaning and the leak, the model and the honest
 test, what drives the predictions, where the model fails, fairness and the
-uncertainty band, and what didn't help. Every step is "what we are looking for,
+uncertainty band, what didn't help, and whether outside data on conflict and
+epidemics helps (it doesn't, and notebook 8 says why). Every step is "what we are looking for,
 the code and its result, how to read it, what it means, what's next and why".
 They run in PyCharm with the project's `venv`; run 03 before 05 and 06. The
 committed copies include their outputs.

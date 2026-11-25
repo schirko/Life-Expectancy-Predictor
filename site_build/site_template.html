@@ -117,8 +117,11 @@ years of the same country, a bit like grading a student on questions they have a
 education. A fancier model, fine-tuning, or adjusting the answers afterwards does not help; the model is limited by what
 the data contains, not by the method. It struggles most with a few countries and is somewhat less accurate for
 developing countries. Every result was checked on countries the model never saw.</p>
-<p><b>What would make it better.</b> Better information, not a better algorithm: data on conflict, epidemics and how
-reliable each country's reporting is.</p>
+<p><b>What would make it better.</b> The project's own guess was outside data on conflict, epidemics and reporting
+quality. That was tested last, and it did not help: the WHO death statistics already reflect a crisis, and the few
+heavy-conflict years are too few to learn from. The honest conclusion is that the 13 inputs carry what can be carried
+about a country at this level of detail; the remaining error is country-specific. Sub-national data is the one idea
+left standing.</p>
 </section>
 
 <h2 id="findings">Key findings</h2>
@@ -142,6 +145,12 @@ reliable each country's reporting is.</p>
   <li><b>A few countries are very hard.</b> ${top_country} is missed by ${top_country_miss} years. The worst 10% of
   countries carry ${top10_share}% of all error, and every model pulls the extremes toward the middle: too high for the lowest
   life expectancies, too low for the highest.</li>
+  <li><b>Outside data didn't help either, and the project says so.</b> Conflict deaths (UCDP), epidemic events (EM-DAT) and
+  two reporting-quality signals were added as inputs and tested on unseen countries with the same folds. Conflict changed the
+  average miss by ${od_conflict} years and epidemics by ${od_epidemic} (both inside noise); the reporting signals made it
+  <i>worse</i> by ${od_reporting} years and widened the fairness gap to ${od_gap_reporting}, because per-country constants act as
+  country fingerprints. The 18 hardest countries went from ${od_hard_base} to ${od_hard_conflict} years. Why: the WHO death
+  statistics already reflect a crisis, and the 121 heavy-conflict years are too few to learn from.</li>
   <li><b>The uncertainty band is slightly optimistic.</b> An 80% interval covers ${cover_random}% of random-split rows
   but only ${cover_group}% on unseen countries.</li>
   <li><b>Developing countries are missed by more, and it isn't just because they're harder.</b> On unseen countries the
@@ -209,7 +218,7 @@ reliable each country's reporting is.</p>
   <li><b>Trained</b> a 200-tree Random Forest and scored it two ways: a random split and country-grouped cross-validation.</li>
   <li><b>Diagnosed</b> it: residuals, permutation importance, partial dependence, interval calibration, tuning, a four-model
   showdown, a hardest-countries investigation, a leak check and a developed-vs-developing fairness check.</li>
-  <li><b>Tested.</b> 37 automated tests check the cleaning, the leak-free clipping, that no country is ever on both sides
+  <li><b>Tested.</b> 40 automated tests check the cleaning, the leak-free clipping, that no country is ever on both sides
   of the honest test, and that this page quotes the same numbers as the saved results. They run on every change.</li>
   <li><b>Published</b> this page from the saved results with one script, so every number and chart matches the
   latest training run.</li>
@@ -220,7 +229,7 @@ Some countries have thin or filled-in data; a country with no data at all for an
 ${presentation}
 
 <h2 id="notebooks">The analysis, step by step</h2>
-<p class="note">Seven notebooks walk through the whole project in order, written for a reader who is smart but not necessarily an analyst. Each step follows the same pattern: what we are looking for, the code and its result, how to read it, what it means, and what's next and why. The eighth is the original coursework notebook the project grew from.</p>
+<p class="note">Eight notebooks walk through the whole project in order, written for a reader who is smart but not necessarily an analyst. Each step follows the same pattern: what we are looking for, the code and its result, how to read it, what it means, and what's next and why. The ninth is the original coursework notebook the project grew from.</p>
 <ul class="nbs">
 ${notebooks}
 </ul>

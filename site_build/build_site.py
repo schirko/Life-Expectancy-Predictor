@@ -69,7 +69,7 @@ if SITE_DIR.name.lower() == "scott" or (SITE_DIR / "styles.css").exists():
     )
 
 
-# The seven explanatory notebooks (milestone 23), in reading order, then the original
+# The eight explanatory notebooks (milestones 23 and 25), in reading order, then the original
 # practicum notebook as "where it started". Each file is committed with its outputs
 # saved, and the build exports those outputs; it never re-runs a notebook.
 NOTEBOOKS = {
@@ -107,6 +107,11 @@ NOTEBOOKS = {
         "What didn't help: other algorithms, tuning, and corrections",
         "Four algorithms raced, 36 settings tuned, corrections tested. The limit is the inputs, "
         "not the method, and that points to the next step.",
+    ),
+    "08_outside_data.ipynb": (
+        "Outside data: does knowing about war and epidemics help?",
+        "The project's own recommendation, tested: conflict deaths, epidemic events and reporting-quality signals "
+        "added as inputs. None helped, one hurt, and the notebook explains why.",
     ),
     "Life_Expectancy_Claude.ipynb": (
         "Where it started: the original practicum notebook",
@@ -446,6 +451,8 @@ def main() -> None:
     cal = json.loads((ROOT / "model" / "interval_calibration.json").read_text(encoding="utf-8"))
     cal_c = cal["evaluation"]["C_per_group"]
     shr = json.loads((ROOT / "model" / "shrinkage_check.json").read_text(encoding="utf-8"))
+    od = json.loads((ROOT / "model" / "outside_data_check.json").read_text(encoding="utf-8"))
+    odv, odb = od["variants"], od["paired_bootstrap_vs_base"]
     g = diag["group_cv"]
     sd = dict(showdown(diag))
     conc = g["hard_cases"]["concentration"]
@@ -496,6 +503,13 @@ def main() -> None:
         "shr_mae_raw": f"{shr['A_raw']['mae']:.2f}",
         "shr_mae_lin": f"{shr['B_linear']['mae']:.2f}",
         "shr_mae_iso": f"{shr['C_isotonic']['mae']:.2f}",
+        "od_base": f"{odv['base']['oof_mae']:.2f}",
+        "od_conflict": f"{odb['+conflict']['mean_change_years']:+.3f}",
+        "od_epidemic": f"{odb['+epidemic']['mean_change_years']:+.3f}",
+        "od_reporting": f"{odb['+reporting']['mean_change_years']:+.3f}",
+        "od_hard_base": f"{odv['base']['mae_hardest_18_of_base']:.2f}",
+        "od_hard_conflict": f"{odv['+conflict']['mae_hardest_18_of_base']:.2f}",
+        "od_gap_reporting": f"{odv['+reporting']['fairness_gap']:.2f}",
         "github": GITHUB,
         "notebooks": export_notebooks(),
         "presentation": presentation_html(),

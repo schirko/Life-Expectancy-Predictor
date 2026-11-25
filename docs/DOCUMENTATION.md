@@ -33,7 +33,8 @@ The pipeline is config-driven: dataset-specific knowledge (column names, cleanin
 | `analysis/shrinkage_check.py` | Tests whether a recalibration step can undo the pull toward the middle (milestone 20) |
 | `site_build/` | Generates the static project page (`build_site.py`, `site_template.html`) |
 | `tests/` | 27 automated tests (`python -m pytest`), also run by GitHub Actions on every push (milestone 22) |
-| `notebooks/` | Seven explanatory notebooks (milestone 23) plus the original practicum notebook, all exported to the page |
+| `notebooks/` | Eight explanatory notebooks (milestones 23 and 25) plus the original practicum notebook, all exported to the page |
+| `data/external/` | Outside data for milestone 25: the UCDP and EM-DAT downloads and the joined country-year table |
 | `presentation/` | Exports of the story deck (milestone 24), published to the page; see its README |
 | `docs/presentation_charts/` | The deck's charts, drawn by `site_build/presentation_charts.py` |
 | `model/` | Trained model, metadata, diagnostics, tuning results and the leak check |
@@ -67,6 +68,8 @@ Because the Python code contains no dataset-specific logic, swapping in a simila
    python -m analysis.fairness_check
    python -m analysis.interval_calibration
    python -m analysis.shrinkage_check
+   python -m analysis.external_data
+   python -m analysis.outside_data_check
    ```
 5. Run the tests (`pip install -r requirements-dev.txt` once):
 
@@ -386,6 +389,27 @@ To point the project at a different, similarly-shaped WHO-style CSV:
 
 **Keeping it current.** After a retrain: `python -m site_build.presentation_charts`, update the deck's images and numbers, re-export, rebuild.
 
+## Outside Data (Milestone 25)
+
+**What.** The project's recommended next step, tested. Three outside inputs were joined to every WHO country-year and added to the model, one family at a time and all together, then scored on unseen countries: conflict (UCDP battle-related deaths), epidemics (EM-DAT epidemic events and deaths), and reporting quality (two signals computed from the WHO file: share of a country's inputs filled in, and year-to-year volatility of its inputs).
+
+**Why.** Findings 3, 4 and 5 and notebooks 5 and 7 all concluded that the inputs, not the method, were the limit, and named these three as what the hard countries might need. A recommendation the project makes about itself should get the same fair test as everything else, and the result should be recorded whichever way it goes.
+
+**How.**
+
+- **Sources.** Scott downloaded the UCDP Battle-Related Deaths Dataset v26.1 (conflict level, CSV; one row per conflict-year, deaths credited to the country the conflict is located in, a multi-country conflict credited to each) and an EM-DAT custom request (Disaster Type = Epidemic, 2000–2015, free registration) into `data/external/`. Both files are committed so the step is reproducible.
+- **`analysis/external_data.py`** maps country names to the WHO spellings (`NAME_MAP`; six small territories in EM-DAT that the WHO table lacks are dropped), sums to country-year, fills zeros where a source records nothing, takes log(1 + deaths) for the model, computes the two reporting signals, and writes `data/external/outside_data_by_country_year.csv` (2,928 rows). 63 countries had any battle deaths, 114 any epidemic.
+- **`analysis/outside_data_check.py`** runs five variants (base, +conflict, +epidemic, +reporting, +all) with GroupKFold(5) by country, the *same* folds for every variant so the comparison is paired; leak-free clipping on the 13 WHO inputs and no clipping on the new ones. For each: fold-mean R², out-of-fold average miss, miss on the base model's 18 hardest countries, the fairness gap with corrected labels; then a paired bootstrap over countries (2,000 redraws) of the change in average miss versus base, permutation importance of the outside inputs inside the +all model, and every country's miss under every variant. Writes `model/outside_data_check.json`.
+- **Notebook 8** (`notebooks/08_outside_data.ipynb`) walks through the result and adds two diagnoses: the base model's signed miss grouped by conflict intensity (with the +conflict model re-run out of fold for the same rows), and the correlation of the reporting signals with per-country error.
+
+**Result.** Nothing helped. Average miss on unseen countries: base 2.139; +conflict 2.138 (−0.001, 95% range −0.010 to +0.010); +epidemic 2.135 (−0.004, range −0.014 to +0.006); +reporting 2.195 (+0.056, range +0.004 to +0.114: reliably worse); +all 2.203. R² 0.901 → 0.901 / 0.901 / 0.894 / 0.893. Hardest 18: 4.76 → 4.75 with conflict. Somalia 11.45 → 11.44. Fairness gap 0.41 → 0.45 with the reporting signals.
+
+**Why not.** (1) The WHO death statistics already reflect a crisis: adult mortality averages 212 in heavy-conflict years against 159 in peace, and the model reads it. (2) There is a small leftover (the model is 1.4 years too optimistic in the 121 heaviest-conflict years, 4% of rows), but that is too thin for the forest to learn, and the conflict input moves it only from 1.38 to 1.31. (3) The reporting signals are weakly related to error (0.23, 0.16), so the idea was sound, but they are per-country constants with 183 distinct values: trees split on them as country fingerprints, which helps in training and hurts on unseen countries. The honest test caught it; a random-row test would have rewarded it.
+
+**Decision.** The deployed model keeps its 13 inputs. The outside data, the builder, the check and notebook 8 stay in the repository as the record of a tested-and-rejected recommendation. The "what would improve it" guidance on the page and in the Findings now says so and names sub-national data as the one idea left.
+
+**Also learned.** Per-country constant features are a trap for grouped cross-validation: they look harmless, carry a little real signal, and lose on unseen groups. Worth checking for in any dataset where the same entity appears many times.
+
 ## Publishing Rules (Ownership)
 
 **Standing rule (2026-11-16).** This project writes only inside its own folder in the Schirko portfolio, `scott/life-expectancy/` (served at schirko.com/scott/life-expectancy/), plus its card screenshot in `scott/images/screenshots/`, which is added by hand. The portfolio project owns `scott/index.html` and `scott/styles.css`, and this project never writes them. If the Life Expectancy card on the portfolio needs changing, the new text is handed to the portfolio project, which makes the change.
@@ -433,10 +457,11 @@ Each row is one milestone, in the order built. Add a row for every new milestone
 | 22. Automated tests | 27 `pytest` tests covering the config, cleaning, leak-free clipping, the honest test, results-vs-docs consistency and the page build; GitHub Actions runs them on every push | Shows the pipeline still does what the documentation says after any change, and lets an employer see it pass | `tests/`, `pytest.ini`, `requirements-dev.txt`, `.github/workflows/tests.yml`. Checked against a deliberate mistake (health-expenditure rule removed): the guarding tests failed as they should. 27 passed in about 10 seconds |
 | 23. Explanatory notebooks | Seven numbered notebooks that walk through the data, cleaning, the honest test, drivers, failures, fairness and what didn't help, each step as "what we are looking for / code / how to read it / what it means / what's next"; the original notebook kept as history | The conclusions were documented but the reasoning was not visible step by step with real results; employers and non-analysts need to see it, and the presentation needs material that matches the numbers exactly | `notebooks/01_*.ipynb` to `07_*.ipynb`, executed and committed with outputs; `site_build/build_site.py` `NOTEBOOKS` lists all eight with blurbs and the back bar's "Notebook" became "Notebooks"; `tests/test_notebooks.py`; notebooks 3, 4, 6 and 7 retrain live and match the saved results |
 | 24. Presentation | A 16-slide story deck with speaker notes, published on the page as PDF, PowerPoint, web page and slide images | Business audiences want the story, not only notebooks; the speaker notes are the interview walkthrough script; built last so every figure is final | Claude Slides deck; `site_build/presentation_charts.py` draws its charts from the saved results; `presentation/README.md` says how to export; `build_site.presentation_html` publishes the exports, makes slide PNGs and a cover from the PDF with PyMuPDF, and adds the page section only when exports exist; `pymupdf` in `requirements.txt`; test added (37 tests) |
+| 25. Outside data | Conflict (UCDP), epidemic (EM-DAT) and reporting-quality inputs added and tested on unseen countries; none helped, reporting signals hurt; recommendation revised | The project's own recommended next step deserved the same fair test as everything else, and a tested-and-rejected idea is a stronger portfolio result than an untested one | `data/external/` sources committed; `analysis/external_data.py` builds `outside_data_by_country_year.csv`; `analysis/outside_data_check.py` writes `model/outside_data_check.json`; `notebooks/08_outside_data.ipynb`; page, Findings (finding 11), README, deck slide 15 and tests updated |
 
 **Found while building milestone 13:**
 
 - **Status labels.** Canada, Finland, France, Greece, Israel and the Republic of Korea are labelled "Developing" in the source data's Status column. The fairness check (milestone 18) relabels them for its comparison; the source data is unchanged.
 - **Health expenditure stored as zero.** Fixed in milestone 21: `Pct_Expenditure` was exactly 0 in 606 of 2,928 rows (every country in 2015, and 26 countries in every year). A 0 in that column is now treated as missing; see "Health-Expenditure Zeros Fixed".
 
-**Still open:** outside data on conflict and epidemics (the project's recommended next step), and the small fallback-median leak (countries with no data at all for an input). The interview walkthrough script is done: it is the deck's speaker notes.
+**Still open:** the small fallback-median leak (countries with no data at all for an input). Sub-national data is noted as the one remaining idea for accuracy, not planned. The outside-data step and the interview walkthrough script are done.

@@ -1,6 +1,6 @@
 # Life Expectancy Predictor — Findings
 
-Every conclusion from the project in one place, most important first. If you are new to the project or to data science, read "Start here" and the word list first. Each finding gives what we were looking for, the key numbers, what it means, and what's next. The method behind each one is in the [project documentation](DOCUMENTATION.md) (section named in brackets), and the numbers come from the results files listed with it. To see the reasoning unfold with the real results on screen, read the seven numbered notebooks in `notebooks/` (on the project page under "The analysis, step by step"): findings 10 and 8 are notebooks 1 and 2, finding 1 is notebook 3, finding 2 is notebook 4, findings 4 and 5 are notebook 5, findings 6 and 7 are notebook 6, and finding 3 is notebook 7.
+Every conclusion from the project in one place, most important first. If you are new to the project or to data science, read "Start here" and the word list first. Each finding gives what we were looking for, the key numbers, what it means, and what's next. The method behind each one is in the [project documentation](DOCUMENTATION.md) (section named in brackets), and the numbers come from the results files listed with it. To see the reasoning unfold with the real results on screen, read the seven numbered notebooks in `notebooks/` (on the project page under "The analysis, step by step"): findings 10 and 8 are notebooks 1 and 2, finding 1 is notebook 3, finding 2 is notebook 4, findings 4 and 5 are notebook 5, findings 6 and 7 are notebook 6, finding 3 is notebook 7, and finding 11 is notebook 8.
 
 ## Start here: the project in plain English
 
@@ -12,7 +12,7 @@ Every conclusion from the project in one place, most important first. If you are
 
 **What we learned, in one paragraph.** Three statistics do most of the work: deaths from HIV/AIDS, adult deaths, and an index of income and education. Swapping in a fancier model or fine-tuning it does not help. Neither does adjusting its answers afterwards. The model is limited by what the data contains, not by the method. It struggles most with a small number of countries (Somalia, Sierra Leone, Angola) and is somewhat less accurate for developing countries than developed ones, even when comparing countries with similar life spans. Its stated uncertainty was too confident for developing countries, so that was corrected. A flaw in how the data was cleaned, and 606 health-spending figures wrongly recorded as zero, were found and fixed; neither made a real difference.
 
-**What would make it better.** Better information, not a better algorithm: data on conflict, epidemics and how reliable each country's reporting is.
+**What would make it better.** The project's own guess was outside data on conflict, epidemics and reporting quality. That was tested last (finding 11), and it did not help. The honest conclusion is that the 13 inputs carry what can be carried about a country at this level of detail; what is left is country-specific. Sub-national data is the one idea left standing.
 
 ## Words used in this document
 
@@ -99,7 +99,7 @@ The median country is off by 1.96 years; 14.2% of countries are off by more than
 
 **What it means.** Somalia has no data at all for three inputs, so the model saw an average country; that explains Somalia, but across countries missing data is unrelated to error (rank correlation 0.00). The country average of HIV/AIDS deaths tracks error best (+0.44). Some countries, such as the Republic of Korea, Cuba and Guatemala, live longer than their indicators suggest.
 
-**What's next.** These countries vary in ways the 13 inputs do not capture (conflict, epidemics, reporting quality); outside data on those is the most promising improvement.
+**What's next.** The obvious guess was that these countries vary in ways the 13 inputs do not capture (conflict, epidemics, reporting quality). Finding 11 tested that guess.
 
 *[Hardest Countries; `model/diagnostics.json`]*
 
@@ -192,6 +192,20 @@ Gap: 0.41 years (95% range 0.10 to 0.73, so very likely real but small). Compari
 
 *[Data Quality: Implicit Missingness; `model/diagnostics.json`]*
 
+## 11. Outside data on conflict and epidemics did not help, and the project's recommendation was wrong
+
+**What we were looking for.** Findings 3, 4 and 5 all ended the same way: the method is not the limit, the inputs are, so bring in outside data on conflict, epidemics and reporting quality. This tests that recommendation on the same honest, country-held-out folds.
+
+**Key numbers.** Base model: average miss 2.139 years on unseen countries. Adding UCDP battle deaths: 2.138 (change −0.001, 95% range −0.010 to +0.010). Adding EM-DAT epidemic events and deaths: 2.135 (−0.004, range −0.014 to +0.006). Adding two reporting-quality signals (share of inputs filled in, year-to-year volatility): 2.195 (+0.056, range +0.004 to +0.114, so reliably worse), with the fairness gap widening from 0.41 to 0.45. All together: 2.203. The 18 hardest countries: 4.76 → 4.75 with conflict data. Somalia: 11.45 → 11.44.
+
+**What it means.** Conflict and epidemic data add nothing because the WHO death statistics already reflect a crisis: adult mortality is far higher in heavy-conflict years, and the model reads it. There *is* a small leftover: in the 121 heaviest conflict years (4% of rows) the model is about 1.4 years too optimistic, but that is too thin a signal for the forest to learn, and the conflict input barely moves it. The reporting signals are weakly related to error (correlations 0.23 and 0.16), so the idea was not wrong, but as per-country constants they act as country fingerprints: a tree can split on them to identify a training country, which helps in training and hurts on unseen ones. The honest test caught that; a random-row test would have rewarded it.
+
+The larger lesson is that the project's own prediction about itself did not survive a fair test, and it is recorded rather than quietly dropped. Three claims have now been tested and rejected: a better algorithm, after-the-fact correction, and outside data of this kind.
+
+**What's next.** Not another national-level data source. Sub-national data (regions within countries) would give the model many more examples of the extreme cases it sees too few of, and is the one idea left standing. Otherwise the limit is reached, and the deliverable is an honest R² 0.90 with an uncertainty band that keeps its promise.
+
+*[Outside Data (Milestone 25); `model/outside_data_check.json`; notebook 8]*
+
 ## What would improve the model
 
-Every line of evidence points the same way: the algorithm, its settings and post-hoc corrections are not the limit; the inputs are. The most promising next step is outside data that captures what the 13 indicators miss for the hardest countries: conflict, epidemics and how reliable a country's reporting is.
+Every line of evidence points the same way: the algorithm, its settings, post-hoc corrections, and now outside data on conflict, epidemics and reporting quality are not the limit. The 13 indicators carry what can be carried about a country at this level of detail; the remaining error is country-specific. The one untested idea is a different unit of analysis: sub-national data, which would give the model many more examples of the extreme cases. Short of that, the limit is reached, and the right deliverable is what the project now has: an honest R² 0.90 on unseen countries with an uncertainty band sized per group.

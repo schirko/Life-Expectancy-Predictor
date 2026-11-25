@@ -55,3 +55,29 @@ def test_documentation_tables_match_results(root):
     assert f"| A. No correction | {shr['mae']:.3f} |" in doc
     leak = load(root, "leak_check.json")["D_new"]
     assert f"| {leak['group_cv_r2']:.4f} | {leak['group_oof_mae']:.3f} |" in doc
+
+
+def test_outside_data_table_covers_every_country_year(root):
+    """Milestone 25: the joined outside-data table has one row per WHO country-year and no gaps."""
+    import pandas as pd
+    from pathlib import Path
+    root = Path(root)
+    outside = pd.read_csv(root / "data" / "external" / "outside_data_by_country_year.csv")
+    clean = pd.read_csv(root / "data" / "clean_data.csv", usecols=["Country", "Year"])
+    merged = clean.merge(outside, on=["Country", "Year"], how="left", indicator=True)
+    assert (merged["_merge"] == "both").all()
+    assert outside[["battle_deaths", "epidemic_events", "inputs_filled_pct", "input_volatility"]].notna().all().all()
+    assert (outside["battle_deaths"] >= 0).all()
+
+
+def test_outside_data_check_is_a_null_result_as_documented(root):
+    """The docs say conflict and epidemic data changed the miss by less than 0.01 years and the
+    reporting signals made it worse. The saved results must still say so."""
+    import json
+    from pathlib import Path
+    od = json.loads((Path(root) / "model" / "outside_data_check.json").read_text(encoding="utf-8"))
+    boot = od["paired_bootstrap_vs_base"]
+    assert abs(boot["+conflict"]["mean_change_years"]) < 0.01
+    assert abs(boot["+epidemic"]["mean_change_years"]) < 0.01
+    assert boot["+reporting"]["mean_change_years"] > 0 and boot["+reporting"]["ci95"][0] > 0
+    assert set(od["variants"]) == {"base", "+conflict", "+epidemic", "+reporting", "+all"}
