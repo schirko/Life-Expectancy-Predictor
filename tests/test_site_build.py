@@ -57,9 +57,16 @@ def test_presentation_section_only_when_exported(root, tmp_path, monkeypatch):
     bs.SITE_DIR.mkdir()
     assert bs.presentation_html() == ""          # nothing exported: section left out
 
-    with PdfPages(pres / "Any Name.pdf") as pdf:
-        for i in range(2):
-            fig = plt.figure(figsize=(16, 9)); fig.text(0.5, 0.5, f"slide {i + 1}"); pdf.savefig(fig); plt.close(fig)
+    def make_pdf(path, title):
+        with PdfPages(path) as pdf:
+            for i in range(2):
+                fig = plt.figure(figsize=(16, 9)); fig.text(0.1, 0.5, title if i == 0 else "slide 2")
+                pdf.savefig(fig); plt.close(fig)
+
+    make_pdf(pres / "Why Does Meat Cost So Much Now.pdf", "Why does meat cost so much now?")
+    assert bs.presentation_html() == ""          # another project's deck is never published
+
+    make_pdf(pres / "Any Name.pdf", "Can you predict how long people live?")
     html = bs.presentation_html()
     assert (pres / "life-expectancy-story-slides.zip").exists() and (pres / "cover.png").exists()
     assert (bs.SITE_DIR / "presentation" / "life-expectancy-story.pdf").exists()

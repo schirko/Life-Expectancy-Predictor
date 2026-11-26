@@ -342,18 +342,50 @@ def _size(path: Path) -> str:
     return f"{kb / 1024:.1f} MB" if kb >= 1024 else f"{kb:.0f} KB"
 
 
+DECK_TITLE = "can you predict how long people live"
+
+
+def _first_slide_text(path: Path) -> str:
+    """The first slide's text of an exported deck, lower-cased, for checking that a
+    file in presentation/ really is this project's deck."""
+    import re
+    import zipfile
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".pdf":
+            import pymupdf
+            with pymupdf.open(path) as doc:
+                return doc[0].get_text().lower() if len(doc) else ""
+        if suffix == ".pptx":
+            with zipfile.ZipFile(path) as z:
+                return " ".join(re.findall(r"<a:t>([^<]*)", z.read("ppt/slides/slide1.xml").decode("utf-8"))).lower()
+        if suffix == ".html":
+            return path.read_text(encoding="utf-8", errors="ignore")[:3_000_000].lower()
+    except Exception:  # unreadable or not a deck: treated as not ours
+        return ""
+    return ""
+
+
 def _presentation_source(name: str):
-    """The exported file to publish under `name`: the exact name if present, else the
-    newest file of the same type in presentation/, so the export menu's own names
-    ("Can You Predict How Long People Live.pdf") work without renaming."""
-    exact = PRESENTATION_DIR / name
-    if exact.exists():
-        return exact
-    suffix = exact.suffix.lower()
+    """The exported file to publish under `name`: the NEWEST file of that type in
+    presentation/ whose first slide carries this deck's title, whatever it is called.
+
+    Newest wins so a fresh export ("Can You Predict How Long People Live.pdf") always
+    replaces an older copy, and the title check stops another project's deck (a
+    meat-prices .pptx once slipped in under this project's name) from being
+    published. Files that fail the check are named in the build output."""
+    suffix = Path(name).suffix.lower()
     if suffix == ".zip":  # made by slides_from_pdf, always under the exact name
-        return None
-    matches = [f for f in PRESENTATION_DIR.glob("*") if f.is_file() and f.suffix.lower() == suffix]
-    return max(matches, key=lambda f: f.stat().st_mtime) if matches else None
+        exact = PRESENTATION_DIR / name
+        return exact if exact.exists() else None
+    candidates = sorted((f for f in PRESENTATION_DIR.glob("*") if f.is_file() and f.suffix.lower() == suffix),
+                        key=lambda f: f.stat().st_mtime, reverse=True)
+    for f in candidates:
+        text = " ".join(_first_slide_text(f).replace("\u2019", "'").split())
+        if DECK_TITLE in text:
+            return f
+        print(f"  skipped presentation/{f.name}: its first slide is not this project's deck")
+    return None
 
 
 def slides_from_pdf() -> None:

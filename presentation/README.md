@@ -7,8 +7,10 @@ speaker notes double as the interview walkthrough script). Its charts are drawn 
 same saved results as everything else.
 
 Export it from the deck's **Share → Export** menu and save the files here. The
-export's own names are fine ("Can You Predict How Long People Live.pdf"): the build
-picks the newest PDF, PowerPoint and HTML file in this folder and publishes them as:
+export's own names are fine ("Can You Predict How Long People Live.pdf"), and there
+is no need to rename anything: for each type, the build picks the **newest** PDF,
+PowerPoint and HTML file in this folder **whose first slide says "Can you predict
+how long people live"**, and publishes it as:
 
 | Export | Published as |
 |---|---|
@@ -21,6 +23,10 @@ it draws each PDF page as a 1920-pixel PNG, zips them as
 `life-expectancy-story-slides.zip`, and saves the first as `cover.png`, the page's
 thumbnail. It redoes this whenever the PDF is newer than the zip. It needs PyMuPDF
 (`pymupdf` in `requirements.txt`).
+
+Files that fail the title check (for example another project's deck) are skipped
+and named in the build output; that check exists because a meat-prices `.pptx`
+once got published here under this project's name.
 
 Then run `python -m site_build.build_site`. It copies whichever files exist to
 `scott/life-expectancy/presentation/` and builds the "The story, as a presentation"
